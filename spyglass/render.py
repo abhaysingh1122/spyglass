@@ -188,10 +188,10 @@ def build_edit_blocks(competitors: list) -> list:
     return blocks
 
 
-def add_platform_modal(competitor_id: str, competitor_name: str) -> dict:
+def add_platform_modal(competitor_id: str, competitor_name: str, channel: str = "") -> dict:
     return {
         "type": "modal", "callback_id": "edit_add_submit",
-        "private_metadata": competitor_id,
+        "private_metadata": f"{competitor_id}|{channel}",
         "title": {"type": "plain_text", "text": "Add Platform"},
         "submit": {"type": "plain_text", "text": "Add"},
         "close": {"type": "plain_text", "text": "Cancel"},
@@ -209,13 +209,14 @@ def add_platform_modal(competitor_id: str, competitor_name: str) -> dict:
     }
 
 
-def replace_platform_modal(competitor_id: str, competitor_name: str, socials: list) -> dict:
+def replace_platform_modal(competitor_id: str, competitor_name: str, socials: list,
+                           channel: str = "") -> dict:
     opts = [{"text": {"type": "plain_text",
                       "text": f"{s['platform']} — {s['handle_url'][:60]}"},
              "value": s["id"]} for s in socials]
     return {
         "type": "modal", "callback_id": "edit_replace_submit",
-        "private_metadata": competitor_id,
+        "private_metadata": f"{competitor_id}|{channel}",
         "title": {"type": "plain_text", "text": "Replace Platform"},
         "submit": {"type": "plain_text", "text": "Replace"},
         "close": {"type": "plain_text", "text": "Cancel"},

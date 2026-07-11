@@ -365,6 +365,16 @@ def run_ask_modal(ack, body, view, client):
 
 
 # --- /spy edit interactive handlers -------------------------------------
+def _repost_watchlist(client, channel, note):
+    """Confirmation + freshly-rendered Manage Watchlist panel, in the channel."""
+    from spyglass import render
+    if channel:
+        client.chat_postMessage(channel=channel, text=note)
+        client.chat_postMessage(channel=channel,
+                                blocks=render.build_edit_blocks(db.list_competitors_with_socials()),
+                                text="Manage watchlist")
+
+
 @app.action("edit_add")
 def act_edit_add(ack, body, client):
     ack()
@@ -372,7 +382,8 @@ def act_edit_add(ack, body, client):
     comp = db.get_competitor(cid)
     from spyglass import render
     client.views_open(trigger_id=body["trigger_id"],
-                      view=render.add_platform_modal(cid, comp["name"] if comp else "competitor"))
+                      view=render.add_platform_modal(cid, comp["name"] if comp else "competitor",
+                                                     channel=_menu_channel(body)))
 
 
 @app.action("edit_replace")
@@ -383,43 +394,49 @@ def act_edit_replace(ack, body, client):
     socials = [s for c in db.list_competitors_with_socials()
                if c["id"] == cid for s in c["socials"]]
     if not socials:
-        client.chat_postEphemeral(channel=body["channel"]["id"], user=body["user"]["id"],
+        client.chat_postEphemeral(channel=_menu_channel(body), user=body["user"]["id"],
                                   text="No platforms to replace yet — use ➕ Add platform first.")
         return
     from spyglass import render
     client.views_open(trigger_id=body["trigger_id"],
-                      view=render.replace_platform_modal(cid, comp["name"] if comp else "competitor", socials))
+                      view=render.replace_platform_modal(cid, comp["name"] if comp else "competitor",
+                                                         socials, channel=_menu_channel(body)))
 
 
 @app.action("edit_remove_comp")
-def act_edit_remove(ack, body, respond):
+def act_edit_remove(ack, body, client):
     ack()
+    comp = db.get_competitor(body["actions"][0]["value"])
+    name = comp["name"] if comp else "Competitor"
     db.remove_competitor(body["actions"][0]["value"])
-    respond(text="🗑 Competitor removed from the watchlist.", replace_original=False)
+    _repost_watchlist(client, _menu_channel(body), f"🗑 Removed *{name}* from the watchlist.")
 
 
 @app.view("edit_add_submit")
 def view_edit_add(ack, body, view, client):
     ack()
-    cid = view["private_metadata"]
+    cid, _, channel = view["private_metadata"].partition("|")
     vals = view["state"]["values"]
     platform = vals["platform"]["v"]["selected_option"]["value"]
     url = vals["url"]["v"]["value"].strip()
     db.add_social_to_competitor(cid, platform, url)
-    client.chat_postMessage(channel=body["user"]["id"],
-                            text=f"✅ Added *{platform}* to the watchlist — SpyGlass is now watching it.")
+    comp = db.get_competitor(cid)
+    name = comp["name"] if comp else "competitor"
+    _repost_watchlist(client, channel or body["user"]["id"],
+                      f"✅ Added *{platform}* to *{name}* — SpyGlass is now watching it.")
 
 
 @app.view("edit_replace_submit")
 def view_edit_replace(ack, body, view, client):
     ack()
+    _cid, _, channel = view["private_metadata"].partition("|")
     vals = view["state"]["values"]
     social_id = vals["which"]["v"]["selected_option"]["value"]
     platform = vals["platform"]["v"]["selected_option"]["value"]
     url = vals["url"]["v"]["value"].strip()
     db.replace_social(social_id, platform, url)
-    client.chat_postMessage(channel=body["user"]["id"],
-                            text=f"🔁 Replaced — now watching *{platform}*: {url}")
+    _repost_watchlist(client, channel or body["user"]["id"],
+                      f"🔁 Replaced — now watching *{platform}*: {url}")
 
 
 @app.command("/tone")
