@@ -75,6 +75,43 @@ def normalize_twitter(item: dict, social: dict) -> dict:
                      item.get("retweetCount"), None, item)
 
 
+def normalize_website(url: str, title: str, social: dict) -> dict:
+    return _base_row(social, "website", url, url, title, "article", [url], None,
+                     None, None, None, None, {"source_url": url})
+
+
+def _slug_title(url: str) -> str:
+    slug = url.rstrip("/").split("/")[-1].split("?")[0].split("#")[0]
+    return slug.replace("-", " ").replace("_", " ").strip().title() or url
+
+
+def _website_articles(scrape_result, base_url: str, limit: int = 12) -> list:
+    """Extract likely article/update links from a Firecrawl scrape of a site."""
+    from urllib.parse import urlparse
+    data = scrape_result.get("data", scrape_result) if isinstance(scrape_result, dict) else {}
+    links = data.get("links") or []
+    base_host = urlparse(base_url).netloc.replace("www.", "")
+    skip = ("tag/", "category/", "author/", "page/", "login", "signup", "pricing",
+            "contact", "careers", "privacy", "terms")
+    out, seen = [], set()
+    for l in links:
+        if not isinstance(l, str):
+            continue
+        pu = urlparse(l)
+        if pu.netloc.replace("www.", "") != base_host:
+            continue
+        path = pu.path.strip("/")
+        if not path or "/" not in path:          # want article-depth paths
+            continue
+        if any(x in path.lower() for x in skip):
+            continue
+        if l in seen:
+            continue
+        seen.add(l)
+        out.append(l)
+    return out[:limit]
+
+
 def _within_window(posted_iso, cutoff) -> bool:
     if not posted_iso:
         return True  # keep if unknown; dedup still protects us
@@ -116,6 +153,22 @@ def scan_new_posts(name_filter: str = None, posted_limit: str = "24h",
         plat = social["platform"]
         comp_name = (social.get("competitors") or {}).get("name", "")
         if name_filter and name_filter.lower() not in comp_name.lower():
+            continue
+
+        if plat == "website":
+            try:
+                res = sources.website_scrape(social["handle_url"])
+            except Exception as e:
+                print(f"[scan] website scrape failed for {social['handle_url']}: {e}")
+                continue
+            for url in _website_articles(res, social["handle_url"]):
+                if db.post_exists(url):
+                    continue
+                row = normalize_website(url, _slug_title(url), social)
+                saved = db.save_post(row)
+                if saved:
+                    new_rows.append(saved[0] if isinstance(saved, list) else row)
+            db.update_last_scraped(social["id"], _now().isoformat())
             continue
 
         if plat == "linkedin":
