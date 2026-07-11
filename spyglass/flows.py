@@ -24,32 +24,65 @@ def _now():
 
 
 # ---------- normalizers (platform output -> unified posts row) ----------
+def _base_row(social, platform, post_url, external_id, content, media_type,
+              media_urls, posted_iso, likes, comments, shares, views, raw):
+    likes, comments, shares = likes or 0, comments or 0, shares or 0
+    return {
+        "social_id": social["id"], "competitor_id": social["competitor_id"],
+        "platform": platform, "post_url": post_url, "external_id": str(external_id or ""),
+        "content": content, "media_type": media_type, "media_urls": media_urls or [],
+        "posted_at": posted_iso, "likes": likes, "comments": comments, "shares": shares,
+        "views": views, "engagement_total": likes + comments + shares,
+        "raw": raw, "last_checked_at": _now().isoformat(),
+    }
+
+
 def normalize_linkedin(item: dict, social: dict) -> dict:
     eng = item.get("engagement") or {}
     posted = (item.get("postedAt") or {}).get("timestamp")
     posted_iso = (dt.datetime.fromtimestamp(posted / 1000, dt.timezone.utc).isoformat()
                   if isinstance(posted, (int, float)) else (item.get("postedAt") or {}).get("date"))
-    likes = eng.get("likes") or 0
-    comments = eng.get("comments") or 0
-    shares = eng.get("shares") or 0
     media_urls = item.get("postImages") or []
     media_type = "image" if media_urls else ("document" if item.get("document") else "text")
-    return {
-        "social_id": social["id"],
-        "competitor_id": social["competitor_id"],
-        "platform": "linkedin",
-        "post_url": item.get("linkedinUrl"),
-        "external_id": str(item.get("id") or ""),
-        "content": item.get("content"),
-        "media_type": media_type,
-        "media_urls": media_urls,
-        "posted_at": posted_iso,
-        "likes": likes, "comments": comments, "shares": shares,
-        "views": None,
-        "engagement_total": likes + comments + shares,
-        "raw": item,
-        "last_checked_at": _now().isoformat(),
-    }
+    return _base_row(social, "linkedin", item.get("linkedinUrl"), item.get("id"),
+                     item.get("content"), media_type, media_urls, posted_iso,
+                     eng.get("likes"), eng.get("comments"), eng.get("shares"), None, item)
+
+
+def normalize_instagram(item: dict, social: dict) -> dict:
+    ts = item.get("timestamp")  # ISO string
+    t = (item.get("type") or "").lower()
+    media_type = "video" if t == "video" else ("carousel" if t == "sidecar" else "image")
+    media_urls = [u for u in [item.get("displayUrl"), item.get("videoUrl")] if u]
+    return _base_row(social, "instagram", item.get("url"), item.get("id"),
+                     item.get("caption"), media_type, media_urls, ts,
+                     item.get("likesCount"), item.get("commentsCount"), None,
+                     item.get("videoViewCount"), item)
+
+
+def normalize_twitter(item: dict, social: dict) -> dict:
+    created = item.get("createdAt")  # "Wed Jan 14 17:17:06 +0000 2026"
+    try:
+        posted_iso = dt.datetime.strptime(created, "%a %b %d %H:%M:%S %z %Y").isoformat()
+    except Exception:
+        posted_iso = None
+    media = item.get("media") or []
+    media_urls = [m.get("url") for m in media if isinstance(m, dict) and m.get("url")]
+    media_type = "video" if any((m.get("type") or "").startswith("video") for m in media if isinstance(m, dict)) else ("image" if media_urls else "text")
+    return _base_row(social, "twitter", item.get("url"), item.get("id"),
+                     item.get("fullText") or item.get("text"), media_type, media_urls,
+                     posted_iso, item.get("likeCount"), item.get("replyCount"),
+                     item.get("retweetCount"), None, item)
+
+
+def _within_window(posted_iso, cutoff) -> bool:
+    if not posted_iso:
+        return True  # keep if unknown; dedup still protects us
+    try:
+        posted = dt.datetime.fromisoformat(str(posted_iso).replace("Z", "+00:00"))
+        return posted >= cutoff
+    except Exception:
+        return True
 
 
 # ---------- Part A: scan for new posts (24h) ----------
@@ -68,24 +101,43 @@ def _split_posts_comments(items: list):
     return posts
 
 
+def _handle_slug(url: str) -> str:
+    return url.rstrip("/").split("/")[-1].split("?")[0]
+
+
 def scan_new_posts(name_filter: str = None, posted_limit: str = "24h",
-                   max_posts: int = MAX_DAILY_POSTS) -> list:
+                   max_posts: int = MAX_DAILY_POSTS, window_hours: int = 24) -> list:
+    """Multi-platform incremental scan. LinkedIn uses server-side postedLimit;
+    Instagram/X fetch latest N and filter by window in code. All dedup by post_url."""
     new_rows = []
+    cutoff = _now() - dt.timedelta(hours=window_hours) if posted_limit == "24h" else \
+        _now() - dt.timedelta(days=32)
     for social in db.get_active_socials():
-        if social["platform"] != "linkedin":
-            continue  # more platforms wired later; don't scrape what we can't handle
+        plat = social["platform"]
         comp_name = (social.get("competitors") or {}).get("name", "")
         if name_filter and name_filter.lower() not in comp_name.lower():
             continue
-        items = sources.linkedin_posts_windowed(
-            [social["handle_url"]], posted_limit=posted_limit,
-            max_posts=max_posts, max_comments=MAX_COMMENTS,
-        )
-        for item in _split_posts_comments(items):
-            url = item.get("linkedinUrl")
+
+        if plat == "linkedin":
+            items = _split_posts_comments(sources.linkedin_posts_windowed(
+                [social["handle_url"]], posted_limit=posted_limit,
+                max_posts=max_posts, max_comments=MAX_COMMENTS))
+            norm, url_key = normalize_linkedin, "linkedinUrl"
+        elif plat == "instagram":
+            items = sources.instagram_posts([social["handle_url"]], results_limit=max_posts)
+            items = [i for i in items if _within_window(i.get("timestamp"), cutoff)]
+            norm, url_key = normalize_instagram, "url"
+        elif plat == "twitter":
+            items = sources.twitter_posts([_handle_slug(social["handle_url"])], max_items=max_posts)
+            norm, url_key = normalize_twitter, "url"
+        else:
+            continue  # website handled by enrichment, not the post feed
+
+        for item in items:
+            url = item.get(url_key)
             if not url or db.post_exists(url):
                 continue
-            row = normalize_linkedin(item, social)
+            row = norm(item, social)
             saved = db.save_post(row)
             if saved:
                 new_rows.append(saved[0] if isinstance(saved, list) else row)

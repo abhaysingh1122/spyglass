@@ -146,8 +146,29 @@ def handle_spy(ack, respond, command, client):
             respond(f":x: Analysis failed:\n```{e}```")
             return
         respond(f"🔍 *SpyGlass on {comp}:*\n{answer}")
+    elif sub == "status":
+        s = db.system_status()
+        watched = "\n".join(
+            f"• {so['platform']} — " +
+            (f"scanned {so['last_scraped_at'][:16]}" if so.get("last_scraped_at") else "never scanned")
+            for so in s["socials"]) or "_none_"
+        respond(
+            f"🔍 *SpyGlass Status*\n"
+            f"*Competitors:* {s['competitors']}   *Posts tracked:* {s['posts']}   "
+            f"*Briefs sent:* {s['briefs']}\n\n*Watched socials:*\n{watched}")
+    elif sub == "compare":
+        board = db.leaderboard()
+        if not board:
+            respond("No data yet to compare. Run `/spy check` first.")
+            return
+        medals = ["🥇", "🥈", "🥉"] + ["▪️"] * 20
+        lines = [f"{medals[i]} *{r['name']}* — {r['avg']:,} avg engagement "
+                 f"({r['posts']} posts · {r['likes']:,}👍 {r['comments']:,}💬 {r['shares']:,}🔁)"
+                 for i, r in enumerate(board)]
+        respond("🏆 *Competitor Leaderboard* (by avg engagement)\n" + "\n".join(lines))
     else:
-        respond("Commands: `/spy check` · `/spy list` · `/spy ask <competitor> <question>`")
+        respond("Commands: `/spy check [name]` · `/spy analyze <name>` · `/spy ask <name> <q>` "
+                "· `/spy list` · `/spy status` · `/spy compare`")
 
 
 @app.command("/tone")

@@ -88,6 +88,40 @@ def update_post_analysis(post_url, analysis: dict) -> None:
     }).eq("post_url", post_url).execute()
 
 
+def system_status() -> dict:
+    """Counts for /spy status — the visibility view."""
+    comps = sb().table("competitors").select("id", count="exact").execute()
+    socials = sb().table("competitor_socials").select("id,platform,last_scraped_at").execute().data
+    posts = sb().table("posts").select("id", count="exact").execute()
+    briefs = sb().table("daily_briefs").select("id", count="exact").execute()
+    return {
+        "competitors": comps.count, "posts": posts.count, "briefs": briefs.count,
+        "socials": socials,
+    }
+
+
+def leaderboard() -> list:
+    """Aggregate engagement per competitor for /spy compare."""
+    posts = sb().table("posts").select(
+        "competitor_id,likes,comments,shares,engagement_total").execute().data
+    comps = {c["id"]: c["name"] for c in
+             sb().table("competitors").select("id,name").execute().data}
+    agg = {}
+    for p in posts:
+        cid = p["competitor_id"]
+        a = agg.setdefault(cid, {"name": comps.get(cid, "?"), "posts": 0,
+                                 "likes": 0, "comments": 0, "shares": 0, "total": 0})
+        a["posts"] += 1
+        a["likes"] += p.get("likes") or 0
+        a["comments"] += p.get("comments") or 0
+        a["shares"] += p.get("shares") or 0
+        a["total"] += p.get("engagement_total") or 0
+    rows = list(agg.values())
+    for r in rows:
+        r["avg"] = round(r["total"] / r["posts"]) if r["posts"] else 0
+    return sorted(rows, key=lambda r: r["avg"], reverse=True)
+
+
 def get_posts_for_competitor_name(name_fragment) -> list:
     """All stored intel for /spy ask — competitor matched by name fragment."""
     comps = (sb().table("competitors").select("id,name")
