@@ -409,6 +409,51 @@ def build_prediction_blocks(name: str, pred: dict) -> list:
     return blocks
 
 
+def build_self_audit_blocks(name: str, audit: dict) -> list:
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": f"🪞 Your Account Audit — {name}", "emoji": True}},
+        {"type": "divider"},
+    ]
+    if audit.get("whats_working"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "✅ *What's working*\n" + "\n".join(f"• {w}" for w in audit["whats_working"])}})
+    if audit.get("pain_points"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "🩹 *Pain points*\n" + "\n".join(f"• {w}" for w in audit["pain_points"])}})
+    if audit.get("quick_wins"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "⚡ *Quick wins this week*\n" +
+                    "\n".join(f"{i}. {w}" for i, w in enumerate(audit["quick_wins"], 1))}})
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "_SpyGlass is watching — including you_ 🔍"}]})
+    return blocks
+
+
+def build_comparison_blocks(my_name: str, comp_name: str, cmp: dict) -> list:
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": f"⚔️ {my_name} vs {comp_name}", "emoji": True}},
+        {"type": "section", "text": {"type": "mrkdwn",
+            "text": f"*The verdict:* {cmp.get('verdict', '—')}"}},
+        {"type": "divider"},
+    ]
+    if cmp.get("where_they_win"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"📉 *Where {comp_name} beats you*\n" +
+                    "\n".join(f"• {w}" for w in cmp["where_they_win"])}})
+    if cmp.get("our_edge"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "💪 *Your edge*\n" + "\n".join(f"• {w}" for w in cmp["our_edge"])}})
+    if cmp.get("steal"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "💡 *Steal this from them*\n" +
+                    "\n".join(f"{i}. {w}" for i, w in enumerate(cmp["steal"], 1))}})
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "_SpyGlass is watching_ 🔍"}]})
+    return blocks
+
+
 def build_dossier_blocks(name: str, result: dict, n_posts: int) -> list:
     """Content-spy dossier — the competitor's decoded playbook."""
     blocks = [

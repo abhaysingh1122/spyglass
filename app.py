@@ -174,6 +174,64 @@ def handle_spy(ack, respond, command, client):
         if status == "none":
             respond("🕯️ No posts are due a 7-day growth re-check yet. "
                     "(Posts become due once they're 7 days past their last check.)")
+    elif sub == "setself":
+        match = URL_RE.search(rest)
+        if not match:
+            respond("Usage: `/spy setself <your profile url>` — register YOUR account")
+            return
+        url = match.group(0)
+        name = derive_name(url)
+        try:
+            db.add_competitor(name, detect_platform(url), url,
+                              added_by=command.get("user_id"),
+                              slack_channel=command.get("channel_id"), is_self=True)
+        except Exception as e:
+            respond(f":x: Couldn't set your account:\n```{e}```")
+            return
+        respond(f"🪞 Set *{name}* as *your* account. Now `/spy check {name}` to scan it, "
+                f"then `/spy me` for your audit or `/spy vs <competitor>` to compare.")
+    elif sub == "me":
+        respond("🪞 Auditing your account — finding pain points and quick wins…")
+        from spyglass import ai as ai_mod, render
+        me = db.get_self()
+        posts = db.get_self_posts()
+        if not me:
+            respond("You haven't set your own account yet. Use `/spy setself <your profile url>`.")
+            return
+        if not posts:
+            respond(f"Your account *{me['name']}* is set, but not scanned yet. "
+                    f"Run `/spy check {me['name']}` first.")
+            return
+        try:
+            audit = ai_mod.self_audit(posts, tone=TONE["current"])
+        except Exception as e:
+            respond(f":x: Audit failed:\n```{e}```")
+            return
+        respond(blocks=render.build_self_audit_blocks(me["name"], audit),
+                text="Your account audit")
+    elif sub == "vs":
+        comp = rest.strip()
+        if not comp:
+            respond("Usage: `/spy vs <competitor>` — compare your account against them")
+            return
+        respond(f"⚔️ Comparing you against *{comp}*…")
+        from spyglass import ai as ai_mod, render
+        me = db.get_self()
+        my_posts = db.get_self_posts()
+        if not me or not my_posts:
+            respond("Set + scan your own account first: `/spy setself <url>` then `/spy check`.")
+            return
+        comp_posts = db.get_posts_for_competitor_name(comp)
+        if not comp_posts:
+            respond(f"No intel on *{comp}* yet — run `/spy check {comp}` first.")
+            return
+        try:
+            cmp = ai_mod.compare(me["name"], my_posts, comp, comp_posts, tone=TONE["current"])
+        except Exception as e:
+            respond(f":x: Comparison failed:\n```{e}```")
+            return
+        respond(blocks=render.build_comparison_blocks(me["name"], comp, cmp),
+                text=f"You vs {comp}")
     elif sub == "compare":
         board = db.leaderboard()
         if not board:

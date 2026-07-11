@@ -198,6 +198,51 @@ def growth_verdict(updates: list, tone: str = "default") -> dict:
     return _parse_json(_call(system, user, max_tokens=2600))
 
 
+def _slim(posts):
+    return [{k: p.get(k) for k in ("content", "posted_at", "likes", "comments",
+                                    "shares", "platform", "content_type", "hook_type")}
+            for p in posts]
+
+
+def self_audit(my_posts: list, tone: str = "default") -> dict:
+    """Audit OUR OWN account — pain points + quick wins. ONE call."""
+    system = (
+        PERSONAS.get(tone, PERSONAS["default"]) + "\n"
+        "You are auditing OUR OWN social account (not a competitor) to find weaknesses and "
+        "quick wins. Be honest and specific — this is for us to improve. BE CONCISE.\n"
+        "RULES (all grounded in the actual posts + engagement):\n"
+        "1. whats_working: 1-2 things our content genuinely does well.\n"
+        "2. pain_points: 2-3 concrete weaknesses — weak hooks, low-engagement patterns, gaps, "
+        "inconsistency. Each <=18 words.\n"
+        "3. quick_wins: 2-3 specific fixes we can apply THIS week. Each <=18 words.\n"
+        "OUTPUT FORMAT: valid JSON only:\n"
+        '{"whats_working": [str], "pain_points": [str], "quick_wins": [str]}'
+    )
+    user = json.dumps({"our_posts": _slim(my_posts)}, ensure_ascii=False, default=str)
+    return _parse_json(_call(system, user, max_tokens=1500))
+
+
+def compare(my_name: str, my_posts: list, comp_name: str, comp_posts: list,
+            tone: str = "default") -> dict:
+    """Head-to-head: OUR account vs a competitor. ONE call."""
+    system = (
+        PERSONAS.get(tone, PERSONAS["default"]) + "\n"
+        f"Compare OUR account '{my_name}' against competitor '{comp_name}'. Honest, grounded, "
+        "actionable — where do they beat us, what do we steal, where's our edge. BE CONCISE.\n"
+        "RULES (grounded in the real posts + engagement of both):\n"
+        "1. verdict: one honest sentence on the gap between us.\n"
+        "2. where_they_win: 2-3 things the competitor does better than us. Each <=18 words.\n"
+        "3. our_edge: 1-2 things WE do better (if any; say so honestly if none).\n"
+        "4. steal: 2-3 specific tactics to copy from them this week. Each <=18 words.\n"
+        "OUTPUT FORMAT: valid JSON only:\n"
+        '{"verdict": str, "where_they_win": [str], "our_edge": [str], "steal": [str]}'
+    )
+    user = json.dumps({"us": {"name": my_name, "posts": _slim(my_posts)},
+                       "them": {"name": comp_name, "posts": _slim(comp_posts)}},
+                      ensure_ascii=False, default=str)
+    return _parse_json(_call(system, user, max_tokens=1800))
+
+
 def ask(question: str, context_posts: list, tone: str = "default") -> str:
     """/spy ask — answer from stored intel. One call, plain-text answer."""
     system = (

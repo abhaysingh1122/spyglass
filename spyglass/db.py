@@ -15,8 +15,8 @@ def sb() -> Client:
 
 # --- competitors ---------------------------------------------------------
 def add_competitor(name, platform, handle_url, added_by=None,
-                   slack_channel=None, website_url=None) -> dict:
-    """Create competitor + its social handle. Dedup on handle_url."""
+                   slack_channel=None, website_url=None, is_self=False) -> dict:
+    """Create competitor (or self account) + its social handle. Dedup on handle_url."""
     existing = (sb().table("competitor_socials")
                 .select("*, competitors(*)").eq("handle_url", handle_url).execute())
     if existing.data:
@@ -24,6 +24,7 @@ def add_competitor(name, platform, handle_url, added_by=None,
 
     comp = sb().table("competitors").insert({
         "name": name, "added_by": added_by, "slack_channel": slack_channel,
+        "is_self": is_self,
     }).execute()
     competitor_id = comp.data[0]["id"]
 
@@ -195,6 +196,19 @@ def get_snapshot_series(name_fragment) -> list:
             title = (p.get("content") or p.get("post_url") or "post").strip()
             series.append({"title": title[:34], "snaps": snaps})
     return series
+
+
+def get_self() -> dict:
+    r = sb().table("competitors").select("id,name").eq("is_self", True).execute().data
+    return r[0] if r else None
+
+
+def get_self_posts(limit=30) -> list:
+    s = get_self()
+    if not s:
+        return []
+    return (sb().table("posts").select("*").eq("competitor_id", s["id"])
+            .order("posted_at", desc=True).limit(limit).execute().data)
 
 
 def recent_posts_all(limit=30) -> list:
