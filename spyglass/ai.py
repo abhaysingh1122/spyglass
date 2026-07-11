@@ -43,7 +43,13 @@ def _call(system: str, user: str, max_tokens: int = 1800) -> str:
         timeout=120,
     )
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    msg = (r.json().get("choices") or [{}])[0].get("message") or {}
+    content = msg.get("content")
+    if not content:  # some models put the answer in reasoning if budget is tight
+        content = msg.get("reasoning") or ""
+    if not content:
+        raise ValueError("AI returned empty content — try again or shorten the input.")
+    return content
 
 
 def _parse_json(text: str):
@@ -166,6 +172,9 @@ def ask(question: str, context_posts: list, tone: str = "default") -> str:
         "2. If the data can't answer it, say what's missing — never invent numbers.\n"
         "3. <=150 words, Slack-friendly plain text.\n"
     )
-    user = json.dumps({"question": question, "data": context_posts},
+    slim = [{k: p.get(k) for k in ("content", "posted_at", "likes", "comments",
+                                    "shares", "content_type", "hook", "hook_type",
+                                    "strategy")} for p in context_posts]
+    user = json.dumps({"question": question, "data": slim},
                       ensure_ascii=False, default=str)
-    return _call(system, user, max_tokens=600)
+    return _call(system, user, max_tokens=1500)
