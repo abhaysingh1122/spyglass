@@ -12,6 +12,17 @@ import requests
 
 _API = "https://openrouter.ai/api/v1/chat/completions"
 
+# Grounding guardrail appended to every analytical prompt — kills hallucination.
+GROUNDING = (
+    "\nGROUNDING RULES (critical):\n"
+    "- Only state numbers, quotes, or facts that are ACTUALLY present in the provided data. "
+    "Never invent a statistic, ratio, percentage, date, or specific.\n"
+    "- If you compute a ratio, it must be arithmetically correct from the given numbers.\n"
+    "- Separate OBSERVATION from INTERPRETATION: hedge inferences with 'likely', 'suggests', "
+    "'appears' — never assert speculation as fact.\n"
+    "- If the data doesn't support a claim, don't make it. Fewer, true insights beat impressive-sounding guesses.\n"
+)
+
 # Personas — /tone easter egg
 PERSONAS = {
     "default": "You are SpyGlass, a sharp competitor-intelligence analyst.",
@@ -34,7 +45,7 @@ def _call(system: str, user: str, max_tokens: int = 1800) -> str:
         json={
             "model": os.environ.get("OPENROUTER_MODEL", "minimax/minimax-m3"),
             "messages": [
-                {"role": "system", "content": system},
+                {"role": "system", "content": system + GROUNDING},
                 {"role": "user", "content": user},
             ],
             "temperature": 0.3,
