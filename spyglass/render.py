@@ -80,12 +80,51 @@ def _menu_action_rows() -> list:
              "text": {"type": "plain_text", "text": "💬 Ask"}},
         ]},
         {"type": "actions", "elements": [
+            {"type": "button", "action_id": "menu_me", "style": "primary",
+             "text": {"type": "plain_text", "text": "🪞 My Account"}},
             {"type": "button", "action_id": "menu_compare",
              "text": {"type": "plain_text", "text": "🏆 Compare"}},
             {"type": "button", "action_id": "menu_manage",
              "text": {"type": "plain_text", "text": "⚙️ Manage"}},
         ]},
     ]
+
+
+def build_me_panel_blocks(self_name: str = None) -> list:
+    intro = (f"Tracking *{self_name}* as your account. Audit it or compare against a rival."
+             if self_name else "Set your own account so SpyGlass can audit *you* "
+             "and compare you head-to-head with competitors.")
+    return [
+        {"type": "header", "text": {"type": "plain_text", "text": "🪞 Your Account", "emoji": True}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": intro}},
+        {"type": "actions", "elements": [
+            {"type": "button", "action_id": "me_set", "style": "primary",
+             "text": {"type": "plain_text", "text": ("🔄 Change my account" if self_name
+                                                     else "➕ Set my account")}},
+            {"type": "button", "action_id": "me_audit",
+             "text": {"type": "plain_text", "text": "🪞 Audit me"}},
+            {"type": "button", "action_id": "me_compare",
+             "text": {"type": "plain_text", "text": "⚔️ Compare vs…"}},
+        ]},
+    ]
+
+
+def set_self_modal(channel: str = "") -> dict:
+    return {
+        "type": "modal", "callback_id": "set_self_submit", "private_metadata": channel,
+        "title": {"type": "plain_text", "text": "Set My Account"},
+        "submit": {"type": "plain_text", "text": "Save"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn",
+                "text": "Paste *your* profile/page URL (LinkedIn, Instagram, X, or website)."}},
+            {"type": "input", "block_id": "url",
+             "label": {"type": "plain_text", "text": "Your account URL"},
+             "element": {"type": "plain_text_input", "action_id": "v",
+                         "placeholder": {"type": "plain_text",
+                                         "text": "https://linkedin.com/company/yourbrand"}}},
+        ],
+    }
 
 
 def build_menu_blocks() -> list:

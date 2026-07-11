@@ -322,6 +322,110 @@ def menu_ask(ack, body, client):
                                                           channel=_menu_channel(body)))
 
 
+@app.action("menu_me")
+def menu_me(ack, body, client):
+    ack()
+    from spyglass import render
+    me = db.get_self()
+    client.chat_postMessage(channel=_menu_channel(body),
+                            blocks=render.build_me_panel_blocks(me["name"] if me else None),
+                            text="Your account")
+
+
+@app.action("me_set")
+def me_set(ack, body, client):
+    ack()
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.set_self_modal(channel=_menu_channel(body)))
+
+
+@app.view("set_self_submit")
+def set_self_submit(ack, body, view, client):
+    ack()
+    import re as _re
+    channel = view.get("private_metadata") or body["user"]["id"]
+    url_m = _re.search(r"https?://[^\s|>]+", view["state"]["values"]["url"]["v"]["value"] or "")
+    if not url_m:
+        client.chat_postMessage(channel=channel, text=":warning: That didn't look like a URL.")
+        return
+    url = url_m.group(0)
+    name = derive_name(url)
+    db.add_competitor(name, detect_platform(url), url, added_by=body["user"]["id"],
+                      slack_channel=channel, is_self=True)
+    client.chat_postMessage(channel=channel,
+        text=f"🪞 Set *{name}* as your account — scanning it now so I can audit you…")
+    import threading
+    from spyglass import flows
+    threading.Thread(target=lambda: flows.run_daily(client, channel, tone=TONE["current"],
+                                                    name_filter=name), daemon=True).start()
+
+
+@app.action("me_audit")
+def me_audit(ack, body, client):
+    ack()
+    import threading
+    ch = _menu_channel(body)
+
+    def work():
+        from spyglass import ai as ai_mod, render
+        me = db.get_self()
+        posts = db.get_self_posts()
+        if not me:
+            client.chat_postMessage(channel=ch, text="Set your account first (🪞 My Account → ➕).")
+            return
+        if not posts:
+            client.chat_postMessage(channel=ch, text=f"*{me['name']}* isn't scanned yet — "
+                                    f"run `/spy check {me['name']}` first.")
+            return
+        client.chat_postMessage(channel=ch, text="🪞 Auditing your account…")
+        try:
+            audit = ai_mod.self_audit(posts, tone=TONE["current"])
+            client.chat_postMessage(channel=ch,
+                blocks=render.build_self_audit_blocks(me["name"], audit), text="Your audit")
+        except Exception as e:
+            client.chat_postMessage(channel=ch, text=f":x: {e}")
+    threading.Thread(target=work, daemon=True).start()
+
+
+@app.action("me_compare")
+def me_compare(ack, body, client):
+    ack()
+    from spyglass import render
+    comps = [c for c in db.list_competitors_with_socials()]
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.competitor_select_modal("run_compare", "Compare vs Competitor",
+                                                          comps, channel=_menu_channel(body)))
+
+
+@app.view("run_compare")
+def run_compare_modal(ack, body, view, client):
+    ack()
+    import threading
+    comp = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
+    dest = view.get("private_metadata") or body["user"]["id"]
+
+    def work():
+        from spyglass import ai as ai_mod, render
+        me = db.get_self()
+        my_posts = db.get_self_posts()
+        if not me or not my_posts:
+            client.chat_postMessage(channel=dest, text="Set + scan your account first (🪞 My Account).")
+            return
+        comp_posts = db.get_posts_for_competitor_name(comp)
+        if not comp_posts:
+            client.chat_postMessage(channel=dest, text=f"No intel on *{comp}* yet — scan it first.")
+            return
+        client.chat_postMessage(channel=dest, text=f"⚔️ Comparing *{me['name']}* vs *{comp}*…")
+        try:
+            cmp = ai_mod.compare(me["name"], my_posts, comp, comp_posts, tone=TONE["current"])
+            client.chat_postMessage(channel=dest,
+                blocks=render.build_comparison_blocks(me["name"], comp, cmp), text="Comparison")
+        except Exception as e:
+            client.chat_postMessage(channel=dest, text=f":x: {e}")
+    threading.Thread(target=work, daemon=True).start()
+
+
 @app.action("menu_compare")
 def menu_compare(ack, body, client):
     ack()
