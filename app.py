@@ -533,6 +533,12 @@ def _health_server():
             self.end_headers()
             self.wfile.write(b"SpyGlass is watching.")
 
+        def do_HEAD(self):
+            # UptimeRobot pings with HEAD by default — must answer 200.
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+
         def log_message(self, *a):
             pass
 
