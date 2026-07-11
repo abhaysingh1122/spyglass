@@ -159,7 +159,8 @@ def growth_recheck(name_filter: str = None) -> list:
         return []
     url_map = {p["post_url"]: p for p in due}
     items = sources.linkedin_posts_windowed(list(url_map.keys()),
-                                            posted_limit="any", max_posts=1)
+                                            posted_limit="any",
+                                            max_posts=max(len(url_map), 5))
     updates = []
     for item in items:
         post = url_map.get(item.get("linkedinUrl"))
