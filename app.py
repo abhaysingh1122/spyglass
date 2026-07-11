@@ -174,24 +174,22 @@ def handle_spy(ack, respond, command, client):
         if status == "none":
             respond("🕯️ No posts are due a 7-day growth re-check yet. "
                     "(Posts become due once they're 7 days past their last check.)")
-    elif sub == "predict":
+    elif sub == "chart":
         target = rest.strip()
         if not target:
-            respond("Usage: `/spy predict <competitor>` — forecast their next moves")
+            respond("Usage: `/spy chart <competitor>` — engagement growth chart over time")
             return
-        respond(f"🔮 Reading *{target}*'s patterns to forecast their next moves…")
-        from spyglass import ai as ai_mod, render
-        posts = db.get_posts_for_competitor_name(target)
-        if not posts:
-            respond(f"No stored intel on *{target}* yet. Run `/spy analyze {target}` first.")
-            return
+        respond(f"📈 Charting *{target}*'s engagement growth over time…")
+        from spyglass import flows
         try:
-            pred = ai_mod.predict(target, posts, tone=TONE["current"])
+            status = flows.run_chart(client, command.get("channel_id"), target)
         except Exception as e:
-            respond(f":x: Prediction failed:\n```{e}```")
+            respond(f":x: Chart failed:\n```{e}```")
             return
-        respond(blocks=render.build_prediction_blocks(target, pred),
-                text=f"SpyGlass forecast — {target}")
+        if status == "none":
+            respond(f"Not enough tracked data points for *{target}* yet. "
+                    "Charts need at least 2 snapshots per post — run `/spy weekly {target}` "
+                    "over time to build the history.")
     elif sub == "compare":
         board = db.leaderboard()
         if not board:
@@ -269,12 +267,12 @@ def menu_analyze(ack, body, client):
                                                           channel=_menu_channel(body)))
 
 
-@app.action("menu_predict")
-def menu_predict(ack, body, client):
+@app.action("menu_chart")
+def menu_chart(ack, body, client):
     ack()
     from spyglass import render
     client.views_open(trigger_id=body["trigger_id"],
-                      view=render.competitor_select_modal("run_predict", "Predict Next Moves",
+                      view=render.competitor_select_modal("run_chart", "Growth Chart",
                                                           db.list_competitors_with_socials(),
                                                           channel=_menu_channel(body)))
 
@@ -332,23 +330,20 @@ def run_analyze_modal(ack, body, view, client):
     threading.Thread(target=work, daemon=True).start()
 
 
-@app.view("run_predict")
-def run_predict_modal(ack, body, view, client):
+@app.view("run_chart")
+def run_chart_modal(ack, body, view, client):
     ack()
     import threading
     name = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
     dest = view.get("private_metadata") or body["user"]["id"]
 
     def work():
-        from spyglass import ai as ai_mod, render
-        posts = db.get_posts_for_competitor_name(name)
-        if not posts:
-            client.chat_postMessage(channel=dest, text=f"No intel on *{name}* yet — analyze first.")
-            return
+        from spyglass import flows
         try:
-            pred = ai_mod.predict(name, posts, tone=TONE["current"])
-            client.chat_postMessage(channel=dest, blocks=render.build_prediction_blocks(name, pred),
-                                    text=f"Forecast — {name}")
+            if flows.run_chart(client, dest, name) == "none":
+                client.chat_postMessage(channel=dest,
+                    text=f"Not enough tracked data points for *{name}* yet "
+                         "(charts need ≥2 snapshots per post).")
         except Exception as e:
             client.chat_postMessage(channel=dest, text=f":x: {e}")
     threading.Thread(target=work, daemon=True).start()

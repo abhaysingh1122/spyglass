@@ -76,8 +76,8 @@ def _menu_action_rows() -> list:
              "text": {"type": "plain_text", "text": "🔍 Scan Now"}},
             {"type": "button", "action_id": "menu_analyze",
              "text": {"type": "plain_text", "text": "🗂️ Analyze"}},
-            {"type": "button", "action_id": "menu_predict",
-             "text": {"type": "plain_text", "text": "🔮 Predict"}},
+            {"type": "button", "action_id": "menu_chart",
+             "text": {"type": "plain_text", "text": "📈 Chart"}},
         ]},
         {"type": "actions", "elements": [
             {"type": "button", "action_id": "menu_ask",
@@ -260,6 +260,53 @@ def _pct(prev, cur):
     if prev == 0:
         return "new" if cur else "0%"
     return f"{'+' if cur >= prev else ''}{round((cur - prev) / prev * 100)}%"
+
+
+def build_growth_board_blocks(competitor: str, series: list) -> list:
+    """In-Slack growth board: ranked posts, proportional bars, before -> after -> %."""
+    rows = []
+    for s in series:
+        snaps = s["snaps"]
+        base = snaps[0].get("likes") or 0
+        cur = snaps[-1].get("likes") or 0
+        bc, cc = snaps[0].get("comments") or 0, snaps[-1].get("comments") or 0
+        bs, cs = snaps[0].get("shares") or 0, snaps[-1].get("shares") or 0
+        rows.append({"title": s["title"], "base": base, "cur": cur,
+                     "bc": bc, "cc": cc, "bs": bs, "cs": cs})
+    rows.sort(key=lambda r: r["cur"], reverse=True)
+    top = max((r["cur"] for r in rows), default=1) or 1
+    medals = ["🥇", "🥈", "🥉"] + ["▪️"] * 40
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": f"📈 {competitor} — 7-Day Growth", "emoji": True}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": f"Engagement change across *{len(rows)}* tracked post(s) · bar = likes vs. top post"}]},
+        {"type": "divider"},
+    ]
+    growths = []
+    for i, r in enumerate(rows):
+        filled = max(1, round(r["cur"] / top * 20))
+        bar = "█" * filled + "░" * (20 - filled)
+        pct = _pct(r["base"], r["cur"])
+        if isinstance(pct, str) and pct.endswith("%") and pct not in ("0%",):
+            try:
+                growths.append(int(pct.replace("+", "").replace("%", "")))
+            except Exception:
+                pass
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"{medals[i]} *{r['title']}*\n"
+                    f"👍 {r['base']:,} → *{r['cur']:,}*  ▲ *{pct}*\n`{bar}`"}})
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+            "text": f"💬 {r['bc']:,} → {r['cc']:,}   🔁 {r['bs']:,} → {r['cs']:,}"}]})
+    if growths:
+        avg = round(sum(growths) / len(growths))
+        blocks += [{"type": "divider"},
+                   {"type": "section", "text": {"type": "mrkdwn",
+                    "text": f"📊 *Average growth this week:* ▲ +{avg}%"}}]
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "_SpyGlass is watching_ 🔍"}]})
+    return blocks
 
 
 def build_growth_blocks(updates: list, verdict: dict) -> list:

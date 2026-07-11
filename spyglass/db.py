@@ -164,6 +164,20 @@ def leaderboard() -> list:
     return sorted(rows, key=lambda r: r["avg"], reverse=True)
 
 
+def get_snapshot_series(name_fragment) -> list:
+    """Time-series engagement per post (from metric_snapshots) for charting."""
+    posts = get_posts_for_competitor_name(name_fragment)
+    series = []
+    for p in posts:
+        snaps = (sb().table("metric_snapshots")
+                 .select("captured_at,likes,comments,shares")
+                 .eq("post_id", p["id"]).order("captured_at").execute().data)
+        if len(snaps) >= 2:  # need >=2 points to draw a growth line
+            title = (p.get("content") or p.get("post_url") or "post").strip()
+            series.append({"title": title[:34], "snaps": snaps})
+    return series
+
+
 def recent_posts_all(limit=30) -> list:
     return (sb().table("posts").select("*")
             .order("posted_at", desc=True).limit(limit).execute().data)

@@ -235,6 +235,18 @@ def growth_recheck(name_filter: str = None) -> list:
     return updates
 
 
+# ---------- Growth board: /spy chart <name> ----------
+def run_chart(slack_client, channel: str, name: str) -> str:
+    from . import render
+    series = db.get_snapshot_series(name)
+    if not series:
+        return "none"
+    blocks = render.build_growth_board_blocks(name.title(), series)
+    slack_client.chat_postMessage(channel=channel, blocks=blocks,
+                                  text=f"{name.title()} — 7-day growth board")
+    return "sent"
+
+
 # ---------- Weekly growth report: /spy weekly ----------
 def run_weekly(slack_client, channel: str, tone: str = "default",
                name_filter: str = None) -> str:
