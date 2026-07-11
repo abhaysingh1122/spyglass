@@ -164,6 +164,25 @@ def leaderboard() -> list:
     return sorted(rows, key=lambda r: r["avg"], reverse=True)
 
 
+def get_momentum_series(name_fragment) -> list:
+    """Aggregate engagement across ALL a competitor's posts, per week — momentum trend."""
+    posts = get_posts_for_competitor_name(name_fragment)
+    ids = [p["id"] for p in posts]
+    if not ids:
+        return []
+    snaps = (sb().table("metric_snapshots")
+             .select("captured_at,likes,comments,shares")
+             .in_("post_id", ids).order("captured_at").execute().data)
+    from collections import defaultdict
+    buckets = defaultdict(lambda: {"likes": 0, "comments": 0, "shares": 0})
+    for s in snaps:
+        day = str(s["captured_at"])[:10]
+        buckets[day]["likes"] += s.get("likes") or 0
+        buckets[day]["comments"] += s.get("comments") or 0
+        buckets[day]["shares"] += s.get("shares") or 0
+    return [{"date": d, **v} for d, v in sorted(buckets.items())]
+
+
 def get_snapshot_series(name_fragment) -> list:
     """Time-series engagement per post (from metric_snapshots) for charting."""
     posts = get_posts_for_competitor_name(name_fragment)

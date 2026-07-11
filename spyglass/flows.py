@@ -238,12 +238,12 @@ def growth_recheck(name_filter: str = None) -> list:
 # ---------- Growth board: /spy chart <name> ----------
 def run_chart(slack_client, channel: str, name: str) -> str:
     from . import render
-    series = db.get_snapshot_series(name)
+    series = db.get_momentum_series(name)
     if not series:
         return "none"
-    blocks = render.build_growth_board_blocks(name.title(), series)
+    blocks = render.build_momentum_blocks(name.title(), series)
     slack_client.chat_postMessage(channel=channel, blocks=blocks,
-                                  text=f"{name.title()} — 7-day growth board")
+                                  text=f"{name.title()} — momentum")
     return "sent"
 
 

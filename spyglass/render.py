@@ -262,6 +262,45 @@ def _pct(prev, cur):
     return f"{'+' if cur >= prev else ''}{round((cur - prev) / prev * 100)}%"
 
 
+def build_momentum_blocks(competitor: str, series: list) -> list:
+    """Aggregate momentum: total engagement week-by-week across ALL their posts."""
+    def _d(iso):
+        try:
+            return dt.datetime.fromisoformat(str(iso)).strftime("%b %d")
+        except Exception:
+            return str(iso)[:10]
+
+    weeks = [{"date": _d(w["date"]),
+              "total": (w["likes"] or 0) + (w["comments"] or 0) + (w["shares"] or 0),
+              "likes": w["likes"], "comments": w["comments"], "shares": w["shares"]}
+             for w in series]
+    top = max((w["total"] for w in weeks), default=1) or 1
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": f"📈 {competitor} — Momentum", "emoji": True}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": "*Total* engagement across all tracked posts, week by week"}]},
+        {"type": "divider"},
+    ]
+    for w in weeks:
+        filled = max(1, round(w["total"] / top * 22))
+        bar = "█" * filled + "░" * (22 - filled)
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"*{w['date']}*   *{w['total']:,}* total\n`{bar}`"}})
+    if len(weeks) >= 2:
+        first, last = weeks[0]["total"], weeks[-1]["total"]
+        pct = _pct(first, last)
+        arrow = "▲" if last >= first else "▼"
+        blocks += [{"type": "divider"},
+                   {"type": "section", "text": {"type": "mrkdwn",
+                    "text": f"📊 *Momentum:* {arrow} *{pct}* total engagement "
+                            f"({first:,} → {last:,}) over {len(weeks)} weeks"}}]
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "_SpyGlass is watching_ 🔍"}]})
+    return blocks
+
+
 def build_growth_board_blocks(competitor: str, series: list) -> list:
     """In-Slack growth board: ranked posts, proportional bars, before -> after -> %."""
     rows = []
