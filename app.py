@@ -431,11 +431,62 @@ def handle_tone(ack, respond, command):
         respond("Usage: `/tone sherlock` or `/tone default`")
 
 
-# --- app mention (ask-anything stub) ------------------------------------
+def _answer_from_intel(question: str) -> str:
+    """Shared brain: detect competitor, pull their intel from Supabase, answer."""
+    def _norm(s):
+        return "".join(ch for ch in s.lower() if ch.isalnum())
+    nq = _norm(question)
+    matched = next((c["name"] for c in db.list_competitors_with_socials()
+                    if _norm(c["name"]) in nq), None)
+    posts = (db.get_posts_for_competitor_name(matched) if matched
+             else db.recent_posts_all())
+    if not posts:
+        return "No intel stored yet — run a scan first (`/spy` → 🔍 Scan Now)."
+    from spyglass import ai as ai_mod
+    return ai_mod.ask(question, posts, tone=TONE["current"])
+
+
+# --- @mention: conversational, answers from Supabase --------------------
 @app.event("app_mention")
-def handle_mention(event, say):
-    say(text="👀 SpyGlass here. Use `/spy check`, `/spy list`, or `/spy ask <competitor> <question>`.",
-        thread_ts=event.get("ts"))
+def handle_mention(event, say, client):
+    text = re.sub(r"<@[\w]+>", "", event.get("text", "")).strip()
+    if not text:
+        say(text="🔍 Ask me anything about your competitors, or use `/spy` for the menu.",
+            thread_ts=event.get("ts"))
+        return
+    say(text=f"🔍 {_answer_from_intel(text)}", thread_ts=event.get("ts"))
+
+
+# --- Slack Assistant chat pane (Slack AI surface) -----------------------
+try:
+    from slack_bolt import Assistant
+    assistant = Assistant()
+
+    @assistant.thread_started
+    def _assistant_start(say, set_suggested_prompts):
+        say("🔍 *SpyGlass here.* Ask me anything about the competitors I'm watching — "
+            "I answer from the intel I've gathered, not guesses.")
+        try:
+            set_suggested_prompts(prompts=[
+                {"title": "This week's moves", "message": "What did my competitors post this week?"},
+                {"title": "Best hook", "message": "Which competitor has the best-performing hooks?"},
+                {"title": "How to counter", "message": "How can we overcome our top competitor?"},
+            ])
+        except Exception:
+            pass
+
+    @assistant.user_message
+    def _assistant_reply(payload, say, set_status):
+        try:
+            set_status("digging through the intel…")
+        except Exception:
+            pass
+        say(_answer_from_intel(payload.get("text", "")))
+
+    app.assistant(assistant)
+    print("Assistant chat pane wired")
+except Exception as _e:
+    print(f"Assistant not available: {_e}")
 
 
 # --- daily auto-report scheduler ------------------------------------------
