@@ -188,9 +188,176 @@ def handle_spy(ack, respond, command, client):
                  f"({r['posts']} posts · {r['likes']:,}👍 {r['comments']:,}💬 {r['shares']:,}🔁)"
                  for i, r in enumerate(board)]
         respond("🏆 *Competitor Leaderboard* (by avg engagement)\n" + "\n".join(lines))
+    elif not text:
+        from spyglass import render
+        respond(blocks=render.build_menu_blocks(), text="SpyGlass menu")
     else:
-        respond("Commands: `/spy check [name]` · `/spy analyze <name>` · `/spy ask <name> <q>` "
-                "· `/spy list` · `/spy status` · `/spy compare`")
+        # Natural-language question — figure out the competitor, answer from intel.
+        def _norm(s):
+            return "".join(ch for ch in s.lower() if ch.isalnum())
+        norm_text = _norm(text)
+        matched = next((c["name"] for c in db.list_competitors_with_socials()
+                        if _norm(c["name"]) in norm_text), None)
+        respond(f"🔍 Digging through the intel{' on *' + matched + '*' if matched else ''}…")
+        from spyglass import ai as ai_mod
+        posts = (db.get_posts_for_competitor_name(matched) if matched
+                 else db.recent_posts_all())
+        if not posts:
+            respond("No intel stored yet — run `/spy check` first so I have something to reason over.")
+            return
+        try:
+            answer = ai_mod.ask(text, posts, tone=TONE["current"])
+        except Exception as e:
+            respond(f":x: Couldn't answer:\n```{e}```")
+            return
+        respond(f"🔍 {answer}")
+
+
+# --- App Home dashboard --------------------------------------------------
+@app.event("app_home_opened")
+def handle_home_opened(client, event):
+    from spyglass import render
+    client.views_publish(
+        user_id=event["user"],
+        view=render.build_home_view(db.system_status(), db.list_competitors_with_socials()))
+
+
+# --- Menu button handlers -----------------------------------------------
+def _menu_channel(body):
+    return (body.get("channel") or {}).get("id") or body["user"]["id"]
+
+
+@app.action("menu_scan")
+def menu_scan(ack, body, client):
+    ack()
+    import threading
+    ch = _menu_channel(body)
+    client.chat_postMessage(channel=ch, text="🔍 SpyGlass is scanning your competitors now…")
+    from spyglass import flows
+
+    def work():
+        try:
+            status = flows.run_daily(client, ch, tone=TONE["current"])
+            if status == "quiet":
+                client.chat_postMessage(channel=ch, text="🕯️ Nothing new in the last 24h. The street is quiet.")
+        except Exception as e:
+            client.chat_postMessage(channel=ch, text=f":x: Scan failed: {e}")
+    threading.Thread(target=work, daemon=True).start()
+
+
+@app.action("menu_analyze")
+def menu_analyze(ack, body, client):
+    ack()
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.competitor_select_modal("run_analyze", "Analyze Competitor",
+                                                          db.list_competitors_with_socials()))
+
+
+@app.action("menu_predict")
+def menu_predict(ack, body, client):
+    ack()
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.competitor_select_modal("run_predict", "Predict Next Moves",
+                                                          db.list_competitors_with_socials()))
+
+
+@app.action("menu_ask")
+def menu_ask(ack, body, client):
+    ack()
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.competitor_select_modal("run_ask", "Ask SpyGlass",
+                                                          db.list_competitors_with_socials(),
+                                                          include_question=True))
+
+
+@app.action("menu_compare")
+def menu_compare(ack, body, client):
+    ack()
+    ch = _menu_channel(body)
+    board = db.leaderboard()
+    if not board:
+        client.chat_postMessage(channel=ch, text="No data yet to compare. Scan first.")
+        return
+    medals = ["🥇", "🥈", "🥉"] + ["▪️"] * 20
+    lines = [f"{medals[i]} *{r['name']}* — {r['avg']:,} avg ({r['posts']} posts)"
+             for i, r in enumerate(board)]
+    client.chat_postMessage(channel=ch, text="🏆 *Leaderboard*\n" + "\n".join(lines))
+
+
+@app.action("menu_manage")
+def menu_manage(ack, body, client):
+    ack()
+    from spyglass import render
+    ch = _menu_channel(body)
+    client.chat_postMessage(channel=ch, blocks=render.build_edit_blocks(
+        db.list_competitors_with_socials()), text="Manage watchlist")
+
+
+# --- Modal runners (analyze / predict / ask) — run async, post to DM -----
+@app.view("run_analyze")
+def run_analyze_modal(ack, body, view, client):
+    ack()
+    import threading
+    name = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
+    user = body["user"]["id"]
+
+    def work():
+        from spyglass import flows
+        client.chat_postMessage(channel=user, text=f"🗂️ Compiling the dossier on *{name}*…")
+        try:
+            if flows.run_deep_analysis(client, user, name, tone=TONE["current"]) == "none":
+                client.chat_postMessage(channel=user, text=f"No intel on *{name}* yet.")
+        except Exception as e:
+            client.chat_postMessage(channel=user, text=f":x: {e}")
+    threading.Thread(target=work, daemon=True).start()
+
+
+@app.view("run_predict")
+def run_predict_modal(ack, body, view, client):
+    ack()
+    import threading
+    name = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
+    user = body["user"]["id"]
+
+    def work():
+        from spyglass import ai as ai_mod, render
+        posts = db.get_posts_for_competitor_name(name)
+        if not posts:
+            client.chat_postMessage(channel=user, text=f"No intel on *{name}* yet — analyze first.")
+            return
+        try:
+            pred = ai_mod.predict(name, posts, tone=TONE["current"])
+            client.chat_postMessage(channel=user, blocks=render.build_prediction_blocks(name, pred),
+                                    text=f"Forecast — {name}")
+        except Exception as e:
+            client.chat_postMessage(channel=user, text=f":x: {e}")
+    threading.Thread(target=work, daemon=True).start()
+
+
+@app.view("run_ask")
+def run_ask_modal(ack, body, view, client):
+    ack()
+    import threading
+    vals = view["state"]["values"]
+    name = vals["competitor"]["v"]["selected_option"]["value"]
+    question = vals["question"]["v"]["value"]
+    user = body["user"]["id"]
+
+    def work():
+        from spyglass import ai as ai_mod
+        posts = db.get_posts_for_competitor_name(name) or db.recent_posts_all()
+        if not posts:
+            client.chat_postMessage(channel=user, text="No intel stored yet — scan first.")
+            return
+        try:
+            answer = ai_mod.ask(question, posts, tone=TONE["current"])
+            client.chat_postMessage(channel=user, text=f"🔍 *{name}* — {answer}")
+        except Exception as e:
+            client.chat_postMessage(channel=user, text=f":x: {e}")
+    threading.Thread(target=work, daemon=True).start()
 
 
 # --- /spy edit interactive handlers -------------------------------------

@@ -164,6 +164,11 @@ def leaderboard() -> list:
     return sorted(rows, key=lambda r: r["avg"], reverse=True)
 
 
+def recent_posts_all(limit=30) -> list:
+    return (sb().table("posts").select("*")
+            .order("posted_at", desc=True).limit(limit).execute().data)
+
+
 def get_posts_for_competitor_name(name_fragment) -> list:
     """All stored intel for /spy ask — competitor matched by name fragment."""
     comps = (sb().table("competitors").select("id,name")

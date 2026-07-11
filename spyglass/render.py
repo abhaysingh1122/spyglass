@@ -69,6 +69,77 @@ def build_daily_blocks(result: dict, new_posts: list, competitor_names: dict = N
     return blocks
 
 
+def _menu_action_rows() -> list:
+    return [
+        {"type": "actions", "elements": [
+            {"type": "button", "action_id": "menu_scan", "style": "primary",
+             "text": {"type": "plain_text", "text": "🔍 Scan Now"}},
+            {"type": "button", "action_id": "menu_analyze",
+             "text": {"type": "plain_text", "text": "🗂️ Analyze"}},
+            {"type": "button", "action_id": "menu_predict",
+             "text": {"type": "plain_text", "text": "🔮 Predict"}},
+        ]},
+        {"type": "actions", "elements": [
+            {"type": "button", "action_id": "menu_ask",
+             "text": {"type": "plain_text", "text": "💬 Ask"}},
+            {"type": "button", "action_id": "menu_compare",
+             "text": {"type": "plain_text", "text": "🏆 Compare"}},
+            {"type": "button", "action_id": "menu_manage",
+             "text": {"type": "plain_text", "text": "⚙️ Manage"}},
+        ]},
+    ]
+
+
+def build_menu_blocks() -> list:
+    return [
+        {"type": "header", "text": {"type": "plain_text", "text": "🔍 SpyGlass", "emoji": True}},
+        {"type": "section", "text": {"type": "mrkdwn",
+            "text": "Your competitor-intelligence command center. Pick an action:"}},
+        *_menu_action_rows(),
+    ]
+
+
+def build_home_view(status: dict, competitors: list) -> dict:
+    watched = ", ".join(c["name"] for c in competitors) or "_none yet_"
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": "🔍 SpyGlass — Competitor Intelligence", "emoji": True}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": f"*{status.get('competitors', 0)}* competitors  ·  "
+                    f"*{status.get('posts', 0)}* posts tracked  ·  "
+                    f"*{status.get('briefs', 0)}* briefs sent"}]},
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*Watching:* {watched}"}},
+        {"type": "divider"},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*What do you want to do?*"}},
+        *_menu_action_rows(),
+        {"type": "divider"},
+        {"type": "section", "text": {"type": "mrkdwn",
+            "text": "➕ *Add a competitor:* type `/setcomp <url>` in any channel."}},
+        {"type": "context", "elements": [{"type": "mrkdwn", "text": "_SpyGlass is watching_ 🔍"}]},
+    ]
+    return {"type": "home", "blocks": blocks}
+
+
+def competitor_select_modal(callback_id: str, title: str, competitors: list,
+                            include_question: bool = False) -> dict:
+    opts = [{"text": {"type": "plain_text", "text": c["name"]}, "value": c["name"]}
+            for c in competitors] or [
+        {"text": {"type": "plain_text", "text": "No competitors yet"}, "value": "none"}]
+    blocks = [{"type": "input", "block_id": "competitor",
+               "label": {"type": "plain_text", "text": "Competitor"},
+               "element": {"type": "static_select", "action_id": "v", "options": opts}}]
+    if include_question:
+        blocks.append({"type": "input", "block_id": "question",
+            "label": {"type": "plain_text", "text": "Your question"},
+            "element": {"type": "plain_text_input", "action_id": "v", "multiline": True,
+                        "placeholder": {"type": "plain_text",
+                                        "text": "What did they post this week? How do we counter it?"}}})
+    return {"type": "modal", "callback_id": callback_id,
+            "title": {"type": "plain_text", "text": title[:24]},
+            "submit": {"type": "plain_text", "text": "Run"},
+            "close": {"type": "plain_text", "text": "Cancel"}, "blocks": blocks}
+
+
 PLATFORM_OPTIONS = [
     {"text": {"type": "plain_text", "text": p.title()}, "value": p}
     for p in ["linkedin", "instagram", "twitter", "website", "youtube"]
