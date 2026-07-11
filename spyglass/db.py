@@ -22,9 +22,11 @@ def add_competitor(name, platform, handle_url, added_by=None,
     if existing.data:
         return {"social": existing.data[0], "existed": True}
 
+    # Mark the self-account via a reserved added_by sentinel — no schema change needed.
     comp = sb().table("competitors").insert({
-        "name": name, "added_by": added_by, "slack_channel": slack_channel,
-        "is_self": is_self,
+        "name": name,
+        "added_by": ("__SELF__" if is_self else added_by),
+        "slack_channel": slack_channel,
     }).execute()
     competitor_id = comp.data[0]["id"]
 
@@ -199,7 +201,8 @@ def get_snapshot_series(name_fragment) -> list:
 
 
 def get_self() -> dict:
-    r = sb().table("competitors").select("id,name").eq("is_self", True).execute().data
+    r = (sb().table("competitors").select("id,name")
+         .eq("added_by", "__SELF__").execute().data)
     return r[0] if r else None
 
 
