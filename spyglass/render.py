@@ -121,7 +121,7 @@ def build_home_view(status: dict, competitors: list) -> dict:
 
 
 def competitor_select_modal(callback_id: str, title: str, competitors: list,
-                            include_question: bool = False) -> dict:
+                            include_question: bool = False, channel: str = "") -> dict:
     opts = [{"text": {"type": "plain_text", "text": c["name"]}, "value": c["name"]}
             for c in competitors] or [
         {"text": {"type": "plain_text", "text": "No competitors yet"}, "value": "none"}]
@@ -135,6 +135,7 @@ def competitor_select_modal(callback_id: str, title: str, competitors: list,
                         "placeholder": {"type": "plain_text",
                                         "text": "What did they post this week? How do we counter it?"}}})
     return {"type": "modal", "callback_id": callback_id,
+            "private_metadata": channel or "",
             "title": {"type": "plain_text", "text": title[:24]},
             "submit": {"type": "plain_text", "text": "Run"},
             "close": {"type": "plain_text", "text": "Cancel"}, "blocks": blocks}

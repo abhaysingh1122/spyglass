@@ -251,7 +251,8 @@ def menu_analyze(ack, body, client):
     from spyglass import render
     client.views_open(trigger_id=body["trigger_id"],
                       view=render.competitor_select_modal("run_analyze", "Analyze Competitor",
-                                                          db.list_competitors_with_socials()))
+                                                          db.list_competitors_with_socials(),
+                                                          channel=_menu_channel(body)))
 
 
 @app.action("menu_predict")
@@ -260,7 +261,8 @@ def menu_predict(ack, body, client):
     from spyglass import render
     client.views_open(trigger_id=body["trigger_id"],
                       view=render.competitor_select_modal("run_predict", "Predict Next Moves",
-                                                          db.list_competitors_with_socials()))
+                                                          db.list_competitors_with_socials(),
+                                                          channel=_menu_channel(body)))
 
 
 @app.action("menu_ask")
@@ -270,7 +272,8 @@ def menu_ask(ack, body, client):
     client.views_open(trigger_id=body["trigger_id"],
                       view=render.competitor_select_modal("run_ask", "Ask SpyGlass",
                                                           db.list_competitors_with_socials(),
-                                                          include_question=True))
+                                                          include_question=True,
+                                                          channel=_menu_channel(body)))
 
 
 @app.action("menu_compare")
@@ -302,16 +305,16 @@ def run_analyze_modal(ack, body, view, client):
     ack()
     import threading
     name = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
-    user = body["user"]["id"]
+    dest = view.get("private_metadata") or body["user"]["id"]
 
     def work():
         from spyglass import flows
-        client.chat_postMessage(channel=user, text=f"🗂️ Compiling the dossier on *{name}*…")
+        client.chat_postMessage(channel=dest, text=f"🗂️ Compiling the dossier on *{name}*…")
         try:
-            if flows.run_deep_analysis(client, user, name, tone=TONE["current"]) == "none":
-                client.chat_postMessage(channel=user, text=f"No intel on *{name}* yet.")
+            if flows.run_deep_analysis(client, dest, name, tone=TONE["current"]) == "none":
+                client.chat_postMessage(channel=dest, text=f"No intel on *{name}* yet.")
         except Exception as e:
-            client.chat_postMessage(channel=user, text=f":x: {e}")
+            client.chat_postMessage(channel=dest, text=f":x: {e}")
     threading.Thread(target=work, daemon=True).start()
 
 
@@ -320,20 +323,20 @@ def run_predict_modal(ack, body, view, client):
     ack()
     import threading
     name = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
-    user = body["user"]["id"]
+    dest = view.get("private_metadata") or body["user"]["id"]
 
     def work():
         from spyglass import ai as ai_mod, render
         posts = db.get_posts_for_competitor_name(name)
         if not posts:
-            client.chat_postMessage(channel=user, text=f"No intel on *{name}* yet — analyze first.")
+            client.chat_postMessage(channel=dest, text=f"No intel on *{name}* yet — analyze first.")
             return
         try:
             pred = ai_mod.predict(name, posts, tone=TONE["current"])
-            client.chat_postMessage(channel=user, blocks=render.build_prediction_blocks(name, pred),
+            client.chat_postMessage(channel=dest, blocks=render.build_prediction_blocks(name, pred),
                                     text=f"Forecast — {name}")
         except Exception as e:
-            client.chat_postMessage(channel=user, text=f":x: {e}")
+            client.chat_postMessage(channel=dest, text=f":x: {e}")
     threading.Thread(target=work, daemon=True).start()
 
 
@@ -344,19 +347,20 @@ def run_ask_modal(ack, body, view, client):
     vals = view["state"]["values"]
     name = vals["competitor"]["v"]["selected_option"]["value"]
     question = vals["question"]["v"]["value"]
-    user = body["user"]["id"]
+    dest = view.get("private_metadata") or body["user"]["id"]
 
     def work():
         from spyglass import ai as ai_mod
         posts = db.get_posts_for_competitor_name(name) or db.recent_posts_all()
         if not posts:
-            client.chat_postMessage(channel=user, text="No intel stored yet — scan first.")
+            client.chat_postMessage(channel=dest, text="No intel stored yet — scan first.")
             return
         try:
             answer = ai_mod.ask(question, posts, tone=TONE["current"])
-            client.chat_postMessage(channel=user, text=f"🔍 *{name}* — {answer}")
+            client.chat_postMessage(channel=dest,
+                                    text=f"🔍 *You asked about {name}:*\n{answer}")
         except Exception as e:
-            client.chat_postMessage(channel=user, text=f":x: {e}")
+            client.chat_postMessage(channel=dest, text=f":x: {e}")
     threading.Thread(target=work, daemon=True).start()
 
 
