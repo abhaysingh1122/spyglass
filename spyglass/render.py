@@ -255,6 +255,39 @@ def replace_platform_modal(competitor_id: str, competitor_name: str, socials: li
     }
 
 
+def _pct(prev, cur):
+    prev = prev or 0
+    if prev == 0:
+        return "new" if cur else "0%"
+    return f"{'+' if cur >= prev else ''}{round((cur - prev) / prev * 100)}%"
+
+
+def build_growth_blocks(updates: list, verdict: dict) -> list:
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": "📈 Weekly Growth Report", "emoji": True}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": f"7-day engagement change across *{len(updates)}* tracked post(s)"}]},
+        {"type": "divider"},
+    ]
+    for u in updates:
+        p, c = u.get("previous", {}), u.get("current", {})
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"*<{u.get('post_url', '')}|Post>*\n"
+                    f"👍 {p.get('likes', 0):,} → *{c.get('likes', 0):,}* ({_pct(p.get('likes'), c.get('likes'))})   "
+                    f"💬 {p.get('comments', 0):,} → *{c.get('comments', 0):,}*   "
+                    f"🔁 {p.get('shares', 0):,} → *{c.get('shares', 0):,}*"}})
+    for line in verdict.get("lines", []) or []:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"🧠 {line}"}]})
+    if verdict.get("overall"):
+        blocks += [{"type": "divider"},
+                   {"type": "section", "text": {"type": "mrkdwn",
+                    "text": f"📊 *The read:* {verdict['overall']}"}}]
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "_SpyGlass is watching_ 🔍"}]})
+    return blocks
+
+
 def build_prediction_blocks(name: str, pred: dict) -> list:
     conf_emoji = {"high": "🟢", "medium": "🟡", "low": "🔴"}
     blocks = [

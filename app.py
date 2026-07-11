@@ -160,6 +160,20 @@ def handle_spy(ack, respond, command, client):
         from spyglass import render
         respond(blocks=render.build_edit_blocks(db.list_competitors_with_socials()),
                 text="Manage watchlist")
+    elif sub == "weekly":
+        target = rest.strip() or None
+        scope = f" for *{target}*" if target else ""
+        respond(f"📈 Running the 7-day growth check{scope} — re-scraping posts due a re-check…")
+        from spyglass import flows
+        try:
+            status = flows.run_weekly(client, command.get("channel_id"),
+                                      tone=TONE["current"], name_filter=target)
+        except Exception as e:
+            respond(f":x: Weekly check failed:\n```{e}```")
+            return
+        if status == "none":
+            respond("🕯️ No posts are due a 7-day growth re-check yet. "
+                    "(Posts become due once they're 7 days past their last check.)")
     elif sub == "predict":
         target = rest.strip()
         if not target:

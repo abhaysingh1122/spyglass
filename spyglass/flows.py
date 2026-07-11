@@ -146,9 +146,15 @@ def scan_new_posts(name_filter: str = None, posted_limit: str = "24h",
 
 
 # ---------- Part B: growth re-check (7-day, via last_checked_at) ----------
-def growth_recheck() -> list:
+def growth_recheck(name_filter: str = None) -> list:
     cutoff = (_now() - dt.timedelta(days=GROWTH_INTERVAL_DAYS)).isoformat()
     due = db.posts_due_for_check(cutoff)
+    if name_filter:
+        ok_ids = {c["id"] for c in db.list_competitors_with_socials()
+                  if name_filter.lower() in c["name"].lower()}
+        due = [p for p in due if p["competitor_id"] in ok_ids]
+    # LinkedIn re-check (the platform with reliable historical re-scrape)
+    due = [p for p in due if p.get("platform") == "linkedin"]
     if not due:
         return []
     url_map = {p["post_url"]: p for p in due}
@@ -166,12 +172,28 @@ def growth_recheck() -> list:
         db.refresh_post_metrics(post["id"], likes, comments, shares, _now().isoformat())
         updates.append({
             "post_url": post["post_url"], "competitor_id": post["competitor_id"],
+            "content": post.get("content"),
             "previous": {"likes": post.get("likes"), "comments": post.get("comments"),
                           "shares": post.get("shares")},
             "current": {"likes": likes, "comments": comments, "shares": shares},
             "posted_at": post.get("posted_at"),
         })
     return updates
+
+
+# ---------- Weekly growth report: /spy weekly ----------
+def run_weekly(slack_client, channel: str, tone: str = "default",
+               name_filter: str = None) -> str:
+    """Re-check posts due for a 7-day growth read, then post a growth report."""
+    updates = growth_recheck(name_filter=name_filter)
+    if not updates:
+        return "none"
+    from . import ai, render
+    verdict = ai.growth_verdict(updates, tone=tone)
+    blocks = render.build_growth_blocks(updates, verdict)
+    slack_client.chat_postMessage(channel=channel, blocks=blocks,
+                                  text="SpyGlass Weekly Growth Report")
+    return "sent"
 
 
 # ---------- Content Spy deep-dive: /spy analyze <name> ----------

@@ -163,6 +163,25 @@ def predict(competitor: str, posts: list, tone: str = "default") -> dict:
     return _parse_json(_call(system, user, max_tokens=2000))
 
 
+def growth_verdict(updates: list, tone: str = "default") -> dict:
+    """ONE call over the week's growth deltas. Strategy-or-luck read per post."""
+    system = (
+        PERSONAS.get(tone, PERSONAS["default"]) + "\n"
+        "You are reviewing 7-day engagement growth on competitor posts. For each, judge if "
+        "the growth looks like a deliberate strategy (repeatable) or luck (one-off). BE CONCISE.\n"
+        "RULES:\n"
+        "1. For each post: line = '<one-liner about the post>: <up X%> — strategy or luck, why (<=18 words)'.\n"
+        "2. overall: one sentence — what the week's growth pattern tells us about their momentum.\n"
+        "OUTPUT FORMAT: valid JSON only:\n"
+        '{"overall": str, "lines": [str]}'
+    )
+    slim = [{"content": (u.get("content") or "")[:200] if u.get("content") else None,
+             "previous": u.get("previous"), "current": u.get("current"),
+             "posted_at": u.get("posted_at")} for u in updates]
+    user = json.dumps({"growth_updates": slim}, ensure_ascii=False, default=str)
+    return _parse_json(_call(system, user, max_tokens=1500))
+
+
 def ask(question: str, context_posts: list, tone: str = "default") -> str:
     """/spy ask — answer from stored intel. One call, plain-text answer."""
     system = (
