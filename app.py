@@ -403,13 +403,33 @@ def act_edit_replace(ack, body, client):
                                                          socials, channel=_menu_channel(body)))
 
 
-@app.action("edit_remove_comp")
-def act_edit_remove(ack, body, client):
+@app.action("edit_remove_open")
+def act_edit_remove_open(ack, body, client):
     ack()
-    comp = db.get_competitor(body["actions"][0]["value"])
+    cid = body["actions"][0]["value"]
+    comp = db.get_competitor(cid)
+    socials = [s for c in db.list_competitors_with_socials()
+               if c["id"] == cid for s in c["socials"]]
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.remove_modal(cid, comp["name"] if comp else "competitor",
+                                               socials, channel=_menu_channel(body)))
+
+
+@app.view("edit_remove_submit")
+def view_edit_remove(ack, body, view, client):
+    ack()
+    cid, _, channel = view["private_metadata"].partition("|")
+    target = view["state"]["values"]["target"]["v"]["selected_option"]["value"]
+    comp = db.get_competitor(cid)
     name = comp["name"] if comp else "Competitor"
-    db.remove_competitor(body["actions"][0]["value"])
-    _repost_watchlist(client, _menu_channel(body), f"🗑 Removed *{name}* from the watchlist.")
+    if target == "ALL":
+        db.remove_competitor(cid)
+        note = f"🗑 Removed *{name}* and all its platforms."
+    else:
+        db.remove_social(target)
+        note = f"🗑 Removed one platform from *{name}*."
+    _repost_watchlist(client, channel or body["user"]["id"], note)
 
 
 @app.view("edit_add_submit")

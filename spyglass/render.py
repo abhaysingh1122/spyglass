@@ -175,14 +175,10 @@ def build_edit_blocks(competitors: list) -> list:
         elements = [{"type": "button", "action_id": "edit_replace",
                      "text": {"type": "plain_text", "text": "🔁 Replace"},
                      "value": c["id"]}]
-        elements.append({"type": "button", "action_id": "edit_remove_comp",
+        elements.append({"type": "button", "action_id": "edit_remove_open",
             "style": "danger",
             "text": {"type": "plain_text", "text": "🗑 Remove"},
-            "value": c["id"],
-            "confirm": {"title": {"type": "plain_text", "text": "Remove competitor?"},
-                        "text": {"type": "mrkdwn", "text": f"Stop watching *{c['name']}* and delete their data?"},
-                        "confirm": {"type": "plain_text", "text": "Remove"},
-                        "deny": {"type": "plain_text", "text": "Keep"}}})
+            "value": c["id"]})
         blocks.append({"type": "actions", "elements": elements})
         blocks.append({"type": "divider"})
     return blocks
@@ -205,6 +201,30 @@ def add_platform_modal(competitor_id: str, competitor_name: str, channel: str = 
              "label": {"type": "plain_text", "text": "Handle / Profile URL"},
              "element": {"type": "plain_text_input", "action_id": "v",
                          "placeholder": {"type": "plain_text", "text": "https://instagram.com/theirhandle"}}},
+        ],
+    }
+
+
+def remove_modal(competitor_id: str, competitor_name: str, socials: list,
+                 channel: str = "") -> dict:
+    opts = [{"text": {"type": "plain_text", "text": "🗑 Entire competitor (all platforms)"},
+             "value": "ALL"}]
+    for s in socials:
+        opts.append({"text": {"type": "plain_text",
+                              "text": f"Just {s['platform']} — {s['handle_url'][:45]}"},
+                     "value": s["id"]})
+    return {
+        "type": "modal", "callback_id": "edit_remove_submit",
+        "private_metadata": f"{competitor_id}|{channel}",
+        "title": {"type": "plain_text", "text": "Remove"},
+        "submit": {"type": "plain_text", "text": "Remove"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn",
+                "text": f"What should I stop watching for *{competitor_name}*?"}},
+            {"type": "input", "block_id": "target",
+             "label": {"type": "plain_text", "text": "Remove"},
+             "element": {"type": "static_select", "action_id": "v", "options": opts}},
         ],
     }
 
