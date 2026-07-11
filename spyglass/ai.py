@@ -164,22 +164,27 @@ def predict(competitor: str, posts: list, tone: str = "default") -> dict:
 
 
 def growth_verdict(updates: list, tone: str = "default") -> dict:
-    """ONE call over the week's growth deltas. Strategy-or-luck read per post."""
+    """ONE call over the week's growth deltas — a real analyst read per post."""
     system = (
         PERSONAS.get(tone, PERSONAS["default"]) + "\n"
-        "You are reviewing 7-day engagement growth on competitor posts. For each, judge if "
-        "the growth looks like a deliberate strategy (repeatable) or luck (one-off). BE CONCISE.\n"
-        "RULES:\n"
-        "1. For each post: line = '<one-liner about the post>: <up X%> — strategy or luck, why (<=18 words)'.\n"
-        "2. overall: one sentence — what the week's growth pattern tells us about their momentum.\n"
+        "You are reviewing 7-day engagement growth on competitor posts. Don't just restate "
+        "numbers — explain WHAT the growth signals and WHAT we should steal. BE CONCISE.\n"
+        "RULES — for EACH post (echo its exact post_url):\n"
+        "- one_liner: what the post is, <=12 words.\n"
+        "- growth_read: did it grow by deliberate strategy (repeatable) or luck (one-off), and why. <=20 words.\n"
+        "- ai_take: what this growth SIGNALS about their content engine — the real insight. 2 sharp sentences.\n"
+        "- steal_this: the concrete takeaway WE can apply to our content. <=15 words.\n"
+        "overall: one sentence — what the week's pattern says about their momentum.\n"
         "OUTPUT FORMAT: valid JSON only:\n"
-        '{"overall": str, "lines": [str]}'
+        '{"overall": str, "posts": [{"post_url": str, "one_liner": str, "growth_read": str, '
+        '"ai_take": str, "steal_this": str}]}'
     )
-    slim = [{"content": (u.get("content") or "")[:200] if u.get("content") else None,
+    slim = [{"post_url": u.get("post_url"),
+             "content": (u.get("content") or "")[:220] if u.get("content") else None,
              "previous": u.get("previous"), "current": u.get("current"),
              "posted_at": u.get("posted_at")} for u in updates]
     user = json.dumps({"growth_updates": slim}, ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=1500))
+    return _parse_json(_call(system, user, max_tokens=2600))
 
 
 def ask(question: str, context_posts: list, tone: str = "default") -> str:

@@ -263,6 +263,7 @@ def _pct(prev, cur):
 
 
 def build_growth_blocks(updates: list, verdict: dict) -> list:
+    analysis = {a.get("post_url"): a for a in verdict.get("posts", [])}
     blocks = [
         {"type": "header", "text": {"type": "plain_text",
             "text": "📈 Weekly Growth Report", "emoji": True}},
@@ -270,19 +271,29 @@ def build_growth_blocks(updates: list, verdict: dict) -> list:
             "text": f"7-day engagement change across *{len(updates)}* tracked post(s)"}]},
         {"type": "divider"},
     ]
-    for u in updates:
+    for i, u in enumerate(updates, 1):
         p, c = u.get("previous", {}), u.get("current", {})
+        a = analysis.get(u.get("post_url"), {})
+        title = a.get("one_liner") or "Post"
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": f"*<{u.get('post_url', '')}|Post>*\n"
+            "text": f"*{i}️⃣ {title}*  <{u.get('post_url', '')}|↗>\n"
                     f"👍 {p.get('likes', 0):,} → *{c.get('likes', 0):,}* ({_pct(p.get('likes'), c.get('likes'))})   "
                     f"💬 {p.get('comments', 0):,} → *{c.get('comments', 0):,}*   "
                     f"🔁 {p.get('shares', 0):,} → *{c.get('shares', 0):,}*"}})
-    for line in verdict.get("lines", []) or []:
-        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"🧠 {line}"}]})
+        if a.get("ai_take"):
+            blocks.append({"type": "section", "text": {"type": "mrkdwn",
+                "text": f"🧠 *AI's take:*\n>{a['ai_take']}"}})
+        ctx = []
+        if a.get("growth_read"):
+            ctx.append({"type": "mrkdwn", "text": f"⚖️ {a['growth_read']}"})
+        if a.get("steal_this"):
+            ctx.append({"type": "mrkdwn", "text": f"💡 *Steal:* {a['steal_this']}"})
+        if ctx:
+            blocks.append({"type": "context", "elements": ctx})
+        blocks.append({"type": "divider"})
     if verdict.get("overall"):
-        blocks += [{"type": "divider"},
-                   {"type": "section", "text": {"type": "mrkdwn",
-                    "text": f"📊 *The read:* {verdict['overall']}"}}]
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"📊 *The read:* {verdict['overall']}"}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
         "text": "_SpyGlass is watching_ 🔍"}]})
     return blocks
