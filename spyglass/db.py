@@ -41,6 +41,48 @@ def get_active_socials() -> list:
             .eq("active", True).execute().data)
 
 
+def list_competitors_with_socials() -> list:
+    """Grouped view for /spy edit: each competitor + its platforms."""
+    comps = sb().table("competitors").select("id,name").order("created_at").execute().data
+    socials = sb().table("competitor_socials").select(
+        "id,competitor_id,platform,handle_url").execute().data
+    by_comp = {}
+    for s in socials:
+        by_comp.setdefault(s["competitor_id"], []).append(s)
+    for c in comps:
+        c["socials"] = by_comp.get(c["id"], [])
+    return comps
+
+
+def add_social_to_competitor(competitor_id, platform, handle_url) -> None:
+    existing = (sb().table("competitor_socials").select("id")
+                .eq("handle_url", handle_url).execute().data)
+    if existing:
+        return
+    sb().table("competitor_socials").insert({
+        "competitor_id": competitor_id, "platform": platform, "handle_url": handle_url,
+    }).execute()
+
+
+def replace_social(social_id, new_platform, new_url) -> None:
+    sb().table("competitor_socials").update({
+        "platform": new_platform, "handle_url": new_url, "last_scraped_at": None,
+    }).eq("id", social_id).execute()
+
+
+def remove_social(social_id) -> None:
+    sb().table("competitor_socials").delete().eq("id", social_id).execute()
+
+
+def remove_competitor(competitor_id) -> None:
+    sb().table("competitors").delete().eq("id", competitor_id).execute()
+
+
+def get_competitor(competitor_id) -> dict:
+    r = sb().table("competitors").select("id,name").eq("id", competitor_id).execute().data
+    return r[0] if r else None
+
+
 def update_last_scraped(social_id, iso_ts) -> None:
     sb().table("competitor_socials").update(
         {"last_scraped_at": iso_ts}).eq("id", social_id).execute()

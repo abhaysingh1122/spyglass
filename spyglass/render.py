@@ -69,6 +69,125 @@ def build_daily_blocks(result: dict, new_posts: list, competitor_names: dict = N
     return blocks
 
 
+PLATFORM_OPTIONS = [
+    {"text": {"type": "plain_text", "text": p.title()}, "value": p}
+    for p in ["linkedin", "instagram", "twitter", "website", "youtube"]
+]
+
+PLAT_EMOJI = {"linkedin": "💼", "instagram": "📸", "twitter": "🐦",
+              "website": "🌐", "youtube": "▶️"}
+
+
+def build_edit_blocks(competitors: list) -> list:
+    """Interactive watchlist editor for /spy edit."""
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": "⚙️ Manage Watchlist", "emoji": True}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": "Add or swap the platforms SpyGlass watches for each competitor."}]},
+        {"type": "divider"},
+    ]
+    if not competitors:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "No competitors yet. Use `/setcomp <url>` to add one."}})
+        return blocks
+
+    for c in competitors:
+        plats = " ".join(f"{PLAT_EMOJI.get(s['platform'], '•')} {s['platform']}"
+                         for s in c["socials"]) or "_no platforms_"
+        blocks.append({"type": "section",
+            "text": {"type": "mrkdwn", "text": f"*{c['name']}*\n{plats}"},
+            "accessory": {"type": "button", "action_id": "edit_add",
+                "text": {"type": "plain_text", "text": "➕ Add platform"},
+                "value": c["id"]}})
+        elements = [{"type": "button", "action_id": "edit_replace",
+                     "text": {"type": "plain_text", "text": "🔁 Replace"},
+                     "value": c["id"]}]
+        elements.append({"type": "button", "action_id": "edit_remove_comp",
+            "style": "danger",
+            "text": {"type": "plain_text", "text": "🗑 Remove"},
+            "value": c["id"],
+            "confirm": {"title": {"type": "plain_text", "text": "Remove competitor?"},
+                        "text": {"type": "mrkdwn", "text": f"Stop watching *{c['name']}* and delete their data?"},
+                        "confirm": {"type": "plain_text", "text": "Remove"},
+                        "deny": {"type": "plain_text", "text": "Keep"}}})
+        blocks.append({"type": "actions", "elements": elements})
+        blocks.append({"type": "divider"})
+    return blocks
+
+
+def add_platform_modal(competitor_id: str, competitor_name: str) -> dict:
+    return {
+        "type": "modal", "callback_id": "edit_add_submit",
+        "private_metadata": competitor_id,
+        "title": {"type": "plain_text", "text": "Add Platform"},
+        "submit": {"type": "plain_text", "text": "Add"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"Add a platform for *{competitor_name}*"}},
+            {"type": "input", "block_id": "platform",
+             "label": {"type": "plain_text", "text": "Platform"},
+             "element": {"type": "static_select", "action_id": "v",
+                         "options": PLATFORM_OPTIONS}},
+            {"type": "input", "block_id": "url",
+             "label": {"type": "plain_text", "text": "Handle / Profile URL"},
+             "element": {"type": "plain_text_input", "action_id": "v",
+                         "placeholder": {"type": "plain_text", "text": "https://instagram.com/theirhandle"}}},
+        ],
+    }
+
+
+def replace_platform_modal(competitor_id: str, competitor_name: str, socials: list) -> dict:
+    opts = [{"text": {"type": "plain_text",
+                      "text": f"{s['platform']} — {s['handle_url'][:60]}"},
+             "value": s["id"]} for s in socials]
+    return {
+        "type": "modal", "callback_id": "edit_replace_submit",
+        "private_metadata": competitor_id,
+        "title": {"type": "plain_text", "text": "Replace Platform"},
+        "submit": {"type": "plain_text", "text": "Replace"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"Swap a platform for *{competitor_name}*"}},
+            {"type": "input", "block_id": "which",
+             "label": {"type": "plain_text", "text": "Which handle to replace"},
+             "element": {"type": "static_select", "action_id": "v", "options": opts}},
+            {"type": "input", "block_id": "platform",
+             "label": {"type": "plain_text", "text": "New platform"},
+             "element": {"type": "static_select", "action_id": "v", "options": PLATFORM_OPTIONS}},
+            {"type": "input", "block_id": "url",
+             "label": {"type": "plain_text", "text": "New handle / URL"},
+             "element": {"type": "plain_text_input", "action_id": "v"}},
+        ],
+    }
+
+
+def build_prediction_blocks(name: str, pred: dict) -> list:
+    conf_emoji = {"high": "🟢", "medium": "🟡", "low": "🔴"}
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": f"🔮 Forecast — {name.title()}", "emoji": True}},
+        {"type": "section", "text": {"type": "mrkdwn",
+            "text": f"*Trajectory:* {pred.get('trajectory', '—')}"}},
+        {"type": "divider"},
+    ]
+    for i, p in enumerate(pred.get("predictions", []), 1):
+        c = (p.get("confidence") or "medium").lower()
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"*{i}. {p.get('move', '—')}*  {conf_emoji.get(c, '🟡')} _{c} confidence_\n"
+                    f">{p.get('reasoning', '')}\n🕐 _{p.get('timeframe', '')}_"}})
+    if pred.get("neglecting"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": "🕳️ *Where they're neglecting*\n" +
+                    "\n".join(f"• {n}" for n in pred["neglecting"])}})
+    if pred.get("your_opening"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"⚔️ *Your opening:* {pred['your_opening']}"}})
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "Forecast is inference from their patterns · _SpyGlass is watching_ 🔍"}]})
+    return blocks
+
+
 def build_dossier_blocks(name: str, result: dict, n_posts: int) -> list:
     """Content-spy dossier — the competitor's decoded playbook."""
     blocks = [

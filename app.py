@@ -156,6 +156,28 @@ def handle_spy(ack, respond, command, client):
             f"🔍 *SpyGlass Status*\n"
             f"*Competitors:* {s['competitors']}   *Posts tracked:* {s['posts']}   "
             f"*Briefs sent:* {s['briefs']}\n\n*Watched socials:*\n{watched}")
+    elif sub == "edit":
+        from spyglass import render
+        respond(blocks=render.build_edit_blocks(db.list_competitors_with_socials()),
+                text="Manage watchlist")
+    elif sub == "predict":
+        target = rest.strip()
+        if not target:
+            respond("Usage: `/spy predict <competitor>` — forecast their next moves")
+            return
+        respond(f"🔮 Reading *{target}*'s patterns to forecast their next moves…")
+        from spyglass import ai as ai_mod, render
+        posts = db.get_posts_for_competitor_name(target)
+        if not posts:
+            respond(f"No stored intel on *{target}* yet. Run `/spy analyze {target}` first.")
+            return
+        try:
+            pred = ai_mod.predict(target, posts, tone=TONE["current"])
+        except Exception as e:
+            respond(f":x: Prediction failed:\n```{e}```")
+            return
+        respond(blocks=render.build_prediction_blocks(target, pred),
+                text=f"SpyGlass forecast — {target}")
     elif sub == "compare":
         board = db.leaderboard()
         if not board:
@@ -169,6 +191,64 @@ def handle_spy(ack, respond, command, client):
     else:
         respond("Commands: `/spy check [name]` · `/spy analyze <name>` · `/spy ask <name> <q>` "
                 "· `/spy list` · `/spy status` · `/spy compare`")
+
+
+# --- /spy edit interactive handlers -------------------------------------
+@app.action("edit_add")
+def act_edit_add(ack, body, client):
+    ack()
+    cid = body["actions"][0]["value"]
+    comp = db.get_competitor(cid)
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.add_platform_modal(cid, comp["name"] if comp else "competitor"))
+
+
+@app.action("edit_replace")
+def act_edit_replace(ack, body, client):
+    ack()
+    cid = body["actions"][0]["value"]
+    comp = db.get_competitor(cid)
+    socials = [s for c in db.list_competitors_with_socials()
+               if c["id"] == cid for s in c["socials"]]
+    if not socials:
+        client.chat_postEphemeral(channel=body["channel"]["id"], user=body["user"]["id"],
+                                  text="No platforms to replace yet — use ➕ Add platform first.")
+        return
+    from spyglass import render
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=render.replace_platform_modal(cid, comp["name"] if comp else "competitor", socials))
+
+
+@app.action("edit_remove_comp")
+def act_edit_remove(ack, body, respond):
+    ack()
+    db.remove_competitor(body["actions"][0]["value"])
+    respond(text="🗑 Competitor removed from the watchlist.", replace_original=False)
+
+
+@app.view("edit_add_submit")
+def view_edit_add(ack, body, view, client):
+    ack()
+    cid = view["private_metadata"]
+    vals = view["state"]["values"]
+    platform = vals["platform"]["v"]["selected_option"]["value"]
+    url = vals["url"]["v"]["value"].strip()
+    db.add_social_to_competitor(cid, platform, url)
+    client.chat_postMessage(channel=body["user"]["id"],
+                            text=f"✅ Added *{platform}* to the watchlist — SpyGlass is now watching it.")
+
+
+@app.view("edit_replace_submit")
+def view_edit_replace(ack, body, view, client):
+    ack()
+    vals = view["state"]["values"]
+    social_id = vals["which"]["v"]["selected_option"]["value"]
+    platform = vals["platform"]["v"]["selected_option"]["value"]
+    url = vals["url"]["v"]["value"].strip()
+    db.replace_social(social_id, platform, url)
+    client.chat_postMessage(channel=body["user"]["id"],
+                            text=f"🔁 Replaced — now watching *{platform}*: {url}")
 
 
 @app.command("/tone")

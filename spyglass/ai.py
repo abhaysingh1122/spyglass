@@ -132,6 +132,31 @@ def dossier(competitor: str, posts: list, tone: str = "default") -> dict:
     return _parse_json(_call(system, user, max_tokens=3000))
 
 
+def predict(competitor: str, posts: list, tone: str = "default") -> dict:
+    """Forecast the competitor's next moves from their post history. ONE call."""
+    system = (
+        PERSONAS.get(tone, PERSONAS["default"]) + "\n"
+        f"You are forecasting '{competitor}'s NEXT moves from their recent post history "
+        "(themes, cadence, what's winning, sequence patterns). This is INFERENCE, not "
+        "certainty — assign a confidence to each. BE CONCISE.\n"
+        "RULES:\n"
+        "1. trajectory: one sentence — where their content is clearly heading.\n"
+        "2. predictions: 2-3 likely next moves. Each -> {move (<=15 words), reasoning "
+        "(why the pattern points here, <=25 words), timeframe (e.g. 'next 1-2 weeks'), "
+        "confidence (high/medium/low)}.\n"
+        "3. neglecting: 2-3 things they're NOT doing / under-investing in (each <=12 words).\n"
+        "4. your_opening: one sharp sentence — how WE exploit the gap to get the edge.\n"
+        "OUTPUT FORMAT: valid JSON only, no explanation:\n"
+        '{"trajectory": str, "predictions": [{"move": str, "reasoning": str, '
+        '"timeframe": str, "confidence": str}], "neglecting": [str], "your_opening": str}'
+    )
+    slim = [{k: p.get(k) for k in ("content", "posted_at", "likes", "comments",
+                                    "shares", "content_type", "hook_type")} for p in posts]
+    user = json.dumps({"competitor": competitor, "posts": slim},
+                      ensure_ascii=False, default=str)
+    return _parse_json(_call(system, user, max_tokens=2000))
+
+
 def ask(question: str, context_posts: list, tone: str = "default") -> str:
     """/spy ask — answer from stored intel. One call, plain-text answer."""
     system = (
