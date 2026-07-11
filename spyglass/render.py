@@ -76,12 +76,10 @@ def _menu_action_rows() -> list:
              "text": {"type": "plain_text", "text": "🔍 Scan Now"}},
             {"type": "button", "action_id": "menu_analyze",
              "text": {"type": "plain_text", "text": "🗂️ Analyze"}},
-            {"type": "button", "action_id": "menu_chart",
-             "text": {"type": "plain_text", "text": "📈 Chart"}},
-        ]},
-        {"type": "actions", "elements": [
             {"type": "button", "action_id": "menu_ask",
              "text": {"type": "plain_text", "text": "💬 Ask"}},
+        ]},
+        {"type": "actions", "elements": [
             {"type": "button", "action_id": "menu_compare",
              "text": {"type": "plain_text", "text": "🏆 Compare"}},
             {"type": "button", "action_id": "menu_manage",

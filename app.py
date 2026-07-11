@@ -174,22 +174,6 @@ def handle_spy(ack, respond, command, client):
         if status == "none":
             respond("🕯️ No posts are due a 7-day growth re-check yet. "
                     "(Posts become due once they're 7 days past their last check.)")
-    elif sub == "chart":
-        target = rest.strip()
-        if not target:
-            respond("Usage: `/spy chart <competitor>` — engagement growth chart over time")
-            return
-        respond(f"📈 Charting *{target}*'s engagement growth over time…")
-        from spyglass import flows
-        try:
-            status = flows.run_chart(client, command.get("channel_id"), target)
-        except Exception as e:
-            respond(f":x: Chart failed:\n```{e}```")
-            return
-        if status == "none":
-            respond(f"Not enough tracked data points for *{target}* yet. "
-                    "Charts need at least 2 snapshots per post — run `/spy weekly {target}` "
-                    "over time to build the history.")
     elif sub == "compare":
         board = db.leaderboard()
         if not board:
@@ -267,14 +251,6 @@ def menu_analyze(ack, body, client):
                                                           channel=_menu_channel(body)))
 
 
-@app.action("menu_chart")
-def menu_chart(ack, body, client):
-    ack()
-    from spyglass import render
-    client.views_open(trigger_id=body["trigger_id"],
-                      view=render.competitor_select_modal("run_chart", "Growth Chart",
-                                                          db.list_competitors_with_socials(),
-                                                          channel=_menu_channel(body)))
 
 
 @app.action("menu_ask")
@@ -330,23 +306,6 @@ def run_analyze_modal(ack, body, view, client):
     threading.Thread(target=work, daemon=True).start()
 
 
-@app.view("run_chart")
-def run_chart_modal(ack, body, view, client):
-    ack()
-    import threading
-    name = view["state"]["values"]["competitor"]["v"]["selected_option"]["value"]
-    dest = view.get("private_metadata") or body["user"]["id"]
-
-    def work():
-        from spyglass import flows
-        try:
-            if flows.run_chart(client, dest, name) == "none":
-                client.chat_postMessage(channel=dest,
-                    text=f"Not enough tracked data points for *{name}* yet "
-                         "(charts need ≥2 snapshots per post).")
-        except Exception as e:
-            client.chat_postMessage(channel=dest, text=f":x: {e}")
-    threading.Thread(target=work, daemon=True).start()
 
 
 @app.view("run_ask")
