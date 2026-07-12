@@ -21,6 +21,17 @@ GROUNDING = (
     "- Separate OBSERVATION from INTERPRETATION: hedge inferences with 'likely', 'suggests', "
     "'appears' — never assert speculation as fact.\n"
     "- If the data doesn't support a claim, don't make it. Fewer, true insights beat impressive-sounding guesses.\n"
+    "- Write ALL output in ENGLISH, even when the source posts are in another language "
+    "(French, German, etc.). Translate any quoted hooks/lines into English, keep the meaning.\n"
+)
+
+# Appended only to JSON-producing calls — minimax-m3 is a reasoning model and will otherwise
+# 'think out loud' in prose, burn the token budget, and never emit the JSON object.
+_JSON_DIRECTIVE = (
+    "\nOUTPUT DISCIPLINE (critical): Respond with ONLY the JSON object described above. "
+    "Do NOT think out loud, do NOT explain your steps, do NOT write any prose, notes, "
+    "reasoning, or markdown before or after it. Your entire response MUST start with '{' "
+    "and end with '}'."
 )
 
 # Personas — /tone easter egg
@@ -34,23 +45,31 @@ PERSONAS = {
 }
 
 
-def _call(system: str, user: str, max_tokens: int = 1800) -> str:
-    """Single-shot chat call. Tight prompts, low temperature, bounded output."""
+def _call(system: str, user: str, max_tokens: int = 1800, json_mode: bool = False) -> str:
+    """Single-shot chat call. Tight prompts, low temperature, bounded output.
+    json_mode=True forces OpenRouter JSON output + forbids the model's prose preamble."""
+    sys_content = system + GROUNDING + (_JSON_DIRECTIVE if json_mode else "")
+    body = {
+        "model": os.environ.get("OPENROUTER_MODEL", "minimax/minimax-m3"),
+        "messages": [
+            {"role": "system", "content": sys_content},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0.3,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+        # minimax-m3 is a hybrid reasoning model; its hidden reasoning eats the token budget
+        # and truncates the JSON. Disable it for structured extraction (direct answer, no CoT).
+        body["reasoning"] = {"enabled": False}
     r = requests.post(
         _API,
         headers={
             "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
             "Content-Type": "application/json",
         },
-        json={
-            "model": os.environ.get("OPENROUTER_MODEL", "minimax/minimax-m3"),
-            "messages": [
-                {"role": "system", "content": system + GROUNDING},
-                {"role": "user", "content": user},
-            ],
-            "temperature": 0.3,
-            "max_tokens": max_tokens,
-        },
+        json=body,
         timeout=120,
     )
     r.raise_for_status()
@@ -65,6 +84,7 @@ def _call(system: str, user: str, max_tokens: int = 1800) -> str:
 
 def _parse_json(text: str):
     """Guardrail code-node: strip fences, extract JSON, repair truncation. Loud on failure."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)  # drop reasoning-model chatter
     text = re.sub(r"```(?:json)?", "", text).strip().strip("`")
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if m:
@@ -115,7 +135,7 @@ def daily_brief(new_posts: list, growth_updates: list, tone: str = "default") ->
         {"new_posts_last_24h": new_posts, "growth_updates_7d": growth_updates},
         ensure_ascii=False, default=str,
     )
-    return _parse_json(_call(system, user, max_tokens=4000))
+    return _parse_json(_call(system, user, max_tokens=4000, json_mode=True))
 
 
 def dossier(competitor: str, posts: list, tone: str = "default") -> dict:
@@ -146,7 +166,7 @@ def dossier(competitor: str, posts: list, tone: str = "default") -> dict:
                                     "hook_type", "content_type")} for p in posts]
     user = json.dumps({"competitor": competitor, "posts": slim},
                       ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=3000))
+    return _parse_json(_call(system, user, max_tokens=3000, json_mode=True))
 
 
 def predict(competitor: str, posts: list, tone: str = "default") -> dict:
@@ -171,7 +191,7 @@ def predict(competitor: str, posts: list, tone: str = "default") -> dict:
                                     "shares", "content_type", "hook_type")} for p in posts]
     user = json.dumps({"competitor": competitor, "posts": slim},
                       ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=2000))
+    return _parse_json(_call(system, user, max_tokens=2000, json_mode=True))
 
 
 def growth_verdict(updates: list, tone: str = "default") -> dict:
@@ -195,7 +215,7 @@ def growth_verdict(updates: list, tone: str = "default") -> dict:
              "previous": u.get("previous"), "current": u.get("current"),
              "posted_at": u.get("posted_at")} for u in updates]
     user = json.dumps({"growth_updates": slim}, ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=2600))
+    return _parse_json(_call(system, user, max_tokens=2600, json_mode=True))
 
 
 def _slim(posts):
@@ -255,7 +275,7 @@ def self_audit(my_posts: list, tone: str = "default") -> dict:
     )
     user = json.dumps({"our_stats": profile_stats(my_posts), "our_posts": _slim(my_posts)},
                       ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=1600))
+    return _parse_json(_call(system, user, max_tokens=1600, json_mode=True))
 
 
 def compare(my_name: str, my_posts: list, comp_name: str, comp_posts: list,
@@ -281,7 +301,7 @@ def compare(my_name: str, my_posts: list, comp_name: str, comp_posts: list,
         {"us": {"name": my_name, "stats": profile_stats(my_posts), "posts": _slim(my_posts)},
          "them": {"name": comp_name, "stats": profile_stats(comp_posts), "posts": _slim(comp_posts)}},
         ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=2000))
+    return _parse_json(_call(system, user, max_tokens=2000, json_mode=True))
 
 
 def ask(question: str, context_posts: list, tone: str = "default") -> str:
