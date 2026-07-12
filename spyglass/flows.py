@@ -147,8 +147,7 @@ def scan_new_posts(name_filter: str = None, posted_limit: str = "24h",
     """Multi-platform incremental scan. LinkedIn uses server-side postedLimit;
     Instagram/X fetch latest N and filter by window in code. All dedup by post_url."""
     new_rows = []
-    cutoff = _now() - dt.timedelta(hours=window_hours) if posted_limit == "24h" else \
-        _now() - dt.timedelta(days=32)
+    cutoff = _now() - dt.timedelta(hours=window_hours)
     for social in db.get_active_socials():
         plat = social["platform"]
         comp_name = (social.get("competitors") or {}).get("name", "")
@@ -262,11 +261,19 @@ def run_weekly(slack_client, channel: str, tone: str = "default",
     return "sent"
 
 
+# ---------- Backfill an account's history (initial scan) ----------
+def backfill_account(name: str) -> list:
+    """Deep initial scrape — up to a year of posts, so audits/dossiers have real data."""
+    return scan_new_posts(name_filter=name, posted_limit="year",
+                          max_posts=30, window_hours=24 * 365)
+
+
 # ---------- Content Spy deep-dive: /spy analyze <name> ----------
 def run_deep_analysis(slack_client, channel: str, name: str,
                       tone: str = "default") -> str:
     """Pull a month of the competitor's content -> ONE AI dossier pass -> Slack + docx."""
-    scan_new_posts(name_filter=name, posted_limit="month", max_posts=30)
+    scan_new_posts(name_filter=name, posted_limit="month", max_posts=30,
+                   window_hours=24 * 32)
     posts = db.get_posts_for_competitor_name(name)
     if not posts:
         return "none"
