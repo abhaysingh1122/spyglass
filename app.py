@@ -101,12 +101,31 @@ def handle_spy(ack, respond, command, client):
 
     if sub == "check":
         target = rest.strip() or None
+        me = db.get_self()
+        # Is the target OUR own account? Then full-history backfill + audit, not a 24h scan.
+        is_self = bool(target and me and target.lower() in me["name"].lower())
+        ch = command.get("channel_id")
+        if is_self:
+            respond("🪞 That's *your* account — pulling your full history and auditing you…")
+            from spyglass import flows, ai as ai_mod, render
+            try:
+                flows.backfill_account(me["name"])
+                posts = db.get_self_posts()
+                if not posts:
+                    respond("Couldn't pull any posts for your account — is the profile public?")
+                    return
+                audit = ai_mod.self_audit(posts, tone=TONE["current"])
+                client.chat_postMessage(channel=ch,
+                    blocks=render.build_self_audit_blocks(me["name"], audit), text="Your audit")
+            except Exception as e:
+                respond(f":x: Audit failed:\n```{e}```")
+            return
+        # Competitor path: 24h incremental scan
         scope = f" on *{target}*" if target else ""
         respond(f"🔍 SpyGlass is on the case{scope} — scanning now…")
         from spyglass import flows
         try:
-            status = flows.run_daily(client, command.get("channel_id"),
-                                     tone=TONE["current"], name_filter=target)
+            status = flows.run_daily(client, ch, tone=TONE["current"], name_filter=target)
         except Exception as e:
             respond(f":x: Scan failed:\n```{e}```")
             return
