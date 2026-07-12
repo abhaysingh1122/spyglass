@@ -361,11 +361,19 @@ def set_self_submit(ack, body, view, client):
     db.add_competitor(name, detect_platform(url), url, added_by=body["user"]["id"],
                       slack_channel=channel, is_self=True)
     client.chat_postMessage(channel=channel,
-        text=f"🪞 Set *{name}* as your account — scanning it now so I can audit you…")
+        text=f"🪞 Set *{name}* as your account — pulling your full history so I can audit you…")
     import threading
     from spyglass import flows
-    threading.Thread(target=lambda: flows.run_daily(client, channel, tone=TONE["current"],
-                                                    name_filter=name), daemon=True).start()
+
+    def _bf():
+        try:
+            rows = flows.backfill_account(name)
+            client.chat_postMessage(channel=channel,
+                text=f"✅ Scanned *{name}* — {len(rows)} posts pulled. "
+                     "Now hit *🪞 Audit me* or *⚔️ Compare vs…*")
+        except Exception as e:
+            client.chat_postMessage(channel=channel, text=f":x: Scan failed: {e}")
+    threading.Thread(target=_bf, daemon=True).start()
 
 
 @app.action("me_audit")
