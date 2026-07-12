@@ -204,22 +204,58 @@ def _slim(posts):
             for p in posts]
 
 
+def profile_stats(posts: list) -> dict:
+    """Grounded profile-level numbers (computed, not AI-guessed)."""
+    import datetime as dt
+    import statistics
+    from collections import Counter
+    if not posts:
+        return {}
+    engs = [(p.get("likes") or 0) + (p.get("comments") or 0) + (p.get("shares") or 0)
+            for p in posts]
+    parsed = []
+    for p in posts:
+        try:
+            parsed.append(dt.datetime.fromisoformat(str(p.get("posted_at")).replace("Z", "+00:00")))
+        except Exception:
+            pass
+    span = (max(parsed) - min(parsed)).days if len(parsed) >= 2 else 0
+    avg = round(sum(engs) / len(engs)) if engs else 0
+    consistency = "n/a"
+    if len(engs) > 1:
+        consistency = "steady" if statistics.pstdev(engs) < avg else "volatile (few hits carry it)"
+    ctypes = Counter(p.get("content_type") for p in posts if p.get("content_type"))
+    return {
+        "posts": len(posts),
+        "avg_engagement": avg,
+        "best_post_engagement": max(engs) if engs else 0,
+        "engagement_consistency": consistency,
+        "posts_per_week": round(len(posts) / (span / 7), 1) if span >= 7 else None,
+        "span_days": span,
+        "content_mix": dict(ctypes) or None,
+    }
+
+
 def self_audit(my_posts: list, tone: str = "default") -> dict:
     """Audit OUR OWN account — pain points + quick wins. ONE call."""
     system = (
         PERSONAS.get(tone, PERSONAS["default"]) + "\n"
-        "You are auditing OUR OWN social account (not a competitor) to find weaknesses and "
-        "quick wins. Be honest and specific — this is for us to improve. BE CONCISE.\n"
-        "RULES (all grounded in the actual posts + engagement):\n"
-        "1. whats_working: 1-2 things our content genuinely does well.\n"
-        "2. pain_points: 2-3 concrete weaknesses — weak hooks, low-engagement patterns, gaps, "
-        "inconsistency. Each <=18 words.\n"
-        "3. quick_wins: 2-3 specific fixes we can apply THIS week. Each <=18 words.\n"
+        "You are auditing OUR OWN account at the PROFILE level (whole history, not post-by-post) "
+        "to find weaknesses and quick wins. Use the computed stats + the posts. Be honest and "
+        "specific — this is for us to improve. BE CONCISE.\n"
+        "RULES (grounded in the stats + posts):\n"
+        "1. profile_read: 1-2 sentences — overall shape of our account (engagement level, "
+        "consistency, what topics/formats we lean on).\n"
+        "2. whats_working: 1-2 things our content genuinely does well.\n"
+        "3. pain_points: 2-3 concrete weaknesses — weak hooks, inconsistency, thin cadence, "
+        "topic gaps. Each <=18 words.\n"
+        "4. quick_wins: 2-3 specific fixes we can apply THIS week. Each <=18 words.\n"
         "OUTPUT FORMAT: valid JSON only:\n"
-        '{"whats_working": [str], "pain_points": [str], "quick_wins": [str]}'
+        '{"profile_read": str, "whats_working": [str], "pain_points": [str], "quick_wins": [str]}'
     )
-    user = json.dumps({"our_posts": _slim(my_posts)}, ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=1500))
+    user = json.dumps({"our_stats": profile_stats(my_posts), "our_posts": _slim(my_posts)},
+                      ensure_ascii=False, default=str)
+    return _parse_json(_call(system, user, max_tokens=1600))
 
 
 def compare(my_name: str, my_posts: list, comp_name: str, comp_posts: list,
@@ -227,20 +263,25 @@ def compare(my_name: str, my_posts: list, comp_name: str, comp_posts: list,
     """Head-to-head: OUR account vs a competitor. ONE call."""
     system = (
         PERSONAS.get(tone, PERSONAS["default"]) + "\n"
-        f"Compare OUR account '{my_name}' against competitor '{comp_name}'. Honest, grounded, "
-        "actionable — where do they beat us, what do we steal, where's our edge. BE CONCISE.\n"
-        "RULES (grounded in the real posts + engagement of both):\n"
-        "1. verdict: one honest sentence on the gap between us.\n"
-        "2. where_they_win: 2-3 things the competitor does better than us. Each <=18 words.\n"
-        "3. our_edge: 1-2 things WE do better (if any; say so honestly if none).\n"
-        "4. steal: 2-3 specific tactics to copy from them this week. Each <=18 words.\n"
+        f"PROFILE-vs-PROFILE comparison: OUR account '{my_name}' vs competitor '{comp_name}'. "
+        "Compare the whole accounts (stats + histories), NOT post-by-post. Honest, grounded, "
+        "actionable. BE CONCISE.\n"
+        "RULES (grounded in both accounts' stats + posts):\n"
+        "1. verdict: one honest sentence on the gap (engagement level, consistency, cadence).\n"
+        "2. why_they_win: 2-3 reasons they out-perform — and be honest whether it's ALGORITHMIC "
+        "(content/hooks/cadence we can copy) vs. STRUCTURAL (bigger follower base / reach we can't "
+        "instantly match). Label each. Each <=22 words.\n"
+        "3. our_edge: 1-2 things WE do better (say so honestly if none).\n"
+        "4. strategy: 2-3 algorithm-based moves we can actually apply to close the gap — NOT "
+        "copying their posts, but the mechanics driving their reach. Each <=22 words.\n"
         "OUTPUT FORMAT: valid JSON only:\n"
-        '{"verdict": str, "where_they_win": [str], "our_edge": [str], "steal": [str]}'
+        '{"verdict": str, "why_they_win": [str], "our_edge": [str], "strategy": [str]}'
     )
-    user = json.dumps({"us": {"name": my_name, "posts": _slim(my_posts)},
-                       "them": {"name": comp_name, "posts": _slim(comp_posts)}},
-                      ensure_ascii=False, default=str)
-    return _parse_json(_call(system, user, max_tokens=1800))
+    user = json.dumps(
+        {"us": {"name": my_name, "stats": profile_stats(my_posts), "posts": _slim(my_posts)},
+         "them": {"name": comp_name, "stats": profile_stats(comp_posts), "posts": _slim(comp_posts)}},
+        ensure_ascii=False, default=str)
+    return _parse_json(_call(system, user, max_tokens=2000))
 
 
 def ask(question: str, context_posts: list, tone: str = "default") -> str:
