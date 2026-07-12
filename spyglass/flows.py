@@ -281,7 +281,7 @@ def run_deep_analysis(slack_client, channel: str, name: str,
     comp_names = {c["id"]: c["name"] for c in
                   db.sb().table("competitors").select("id,name").execute().data}
     from . import render
-    blocks = render.build_dossier_blocks(name, result, len(posts))
+    blocks = render.build_dossier_blocks(name, result, len(posts), tone=tone)
     docx_path = report.build_dossier_docx(name, result, posts, comp_names)
     slack_client.chat_postMessage(channel=channel, blocks=blocks,
                                   text=f"SpyGlass Content Dossier — {name}")

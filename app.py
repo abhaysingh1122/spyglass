@@ -71,7 +71,7 @@ def handle_setcomp(ack, respond, command):
         return
 
     existed = result.get("existed")
-    header = "🔍 Already watching this competitor" if existed else "🔍 Competitor locked in"
+    header = phrase("comp_existed") if existed else phrase("comp_new")
     respond(
         blocks=[
             {"type": "header", "text": {"type": "plain_text", "text": header}},
@@ -81,7 +81,7 @@ def handle_setcomp(ack, respond, command):
                 {"type": "mrkdwn", "text": f"*Handle:*\n<{url}>"},
             ]},
             {"type": "context", "elements": [
-                {"type": "mrkdwn", "text": "SpyGlass is now watching. Daily scans will surface their new posts here."}
+                {"type": "mrkdwn", "text": phrase("comp_watching")}
             ]},
         ],
         text=f"Competitor locked in: {name} ({platform})",
@@ -105,6 +105,12 @@ PHRASES = {
         "audit_short":   "🪞 Auditing your account…",
         "compare_start": "⚔️ Comparing you against *{comp}*…",
         "compare_named": "⚔️ Comparing *{me}* vs *{comp}*…",
+        "list_header":   "🔍 *Watchlist:*",
+        "status_header": "🔍 *SpyGlass Status*",
+        "board_header":  "🏆 *Competitor Leaderboard* (by avg engagement)",
+        "comp_new":      "🔍 Competitor locked in",
+        "comp_existed":  "🔍 Already watching this competitor",
+        "comp_watching": "SpyGlass is now watching. Daily scans will surface their new posts here.",
     },
     "sherlock": {
         "self_detected": "🎩 *Ah — your own file.* Allow me to retrieve your complete history and deduce what it betrays…",
@@ -117,6 +123,12 @@ PHRASES = {
         "audit_short":   "🔍 *Turning the glass upon yourself…*",
         "compare_start": "⚔️ *Let us lay the two records side by side* — you against *{comp}*. The deductions will be telling…",
         "compare_named": "⚔️ *Two files, one comparison* — *{me}* set against *{comp}*…",
+        "list_header":   "🔍 *The subjects under surveillance:*",
+        "status_header": "🔍 *The State of the Investigation*",
+        "board_header":  "🏆 *The Field, Ranked* (by average engagement)",
+        "comp_new":      "🔍 A new subject enters the casebook",
+        "comp_existed":  "🔍 This subject is already under my glass",
+        "comp_watching": "The subject is now under surveillance. Each day I shall note their fresh movements here.",
     },
 }
 
@@ -151,7 +163,7 @@ def handle_spy(ack, respond, command, client):
                     return
                 audit = ai_mod.self_audit(posts, tone=TONE["current"])
                 client.chat_postMessage(channel=ch,
-                    blocks=render.build_self_audit_blocks(me["name"], audit), text="Your audit")
+                    blocks=render.build_self_audit_blocks(me["name"], audit, tone=TONE["current"]), text="Your audit")
             except Exception as e:
                 respond(f":x: Audit failed:\n```{e}```")
             return
@@ -189,7 +201,7 @@ def handle_spy(ack, respond, command, client):
         lines = [f"• *{s['competitors']['name']}* — {s['platform']} — <{s['handle_url']}>"
                  + (f" _(last scraped {s['last_scraped_at'][:16]})_" if s.get("last_scraped_at") else " _(never scraped)_")
                  for s in socials]
-        respond("🔍 *Watchlist:*\n" + "\n".join(lines))
+        respond(phrase("list_header") + "\n" + "\n".join(lines))
     elif sub == "ask":
         if not rest.strip():
             respond("Usage: `/spy ask <competitor> <question>` — e.g. `/spy ask openai what hooks work for them?`")
@@ -214,7 +226,7 @@ def handle_spy(ack, respond, command, client):
             (f"scanned {so['last_scraped_at'][:16]}" if so.get("last_scraped_at") else "never scanned")
             for so in s["socials"]) or "_none_"
         respond(
-            f"🔍 *SpyGlass Status*\n"
+            phrase("status_header") + "\n"
             f"*Competitors:* {s['competitors']}   *Posts tracked:* {s['posts']}   "
             f"*Briefs sent:* {s['briefs']}\n\n*Watched socials:*\n{watched}")
     elif sub == "edit":
@@ -267,7 +279,7 @@ def handle_spy(ack, respond, command, client):
         except Exception as e:
             respond(f":x: Audit failed:\n```{e}```")
             return
-        respond(blocks=render.build_self_audit_blocks(me["name"], audit),
+        respond(blocks=render.build_self_audit_blocks(me["name"], audit, tone=TONE["current"]),
                 text="Your account audit")
     elif sub == "vs":
         comp = rest.strip()
@@ -290,7 +302,7 @@ def handle_spy(ack, respond, command, client):
         except Exception as e:
             respond(f":x: Comparison failed:\n```{e}```")
             return
-        respond(blocks=render.build_comparison_blocks(me["name"], comp, cmp),
+        respond(blocks=render.build_comparison_blocks(me["name"], comp, cmp, tone=TONE["current"]),
                 text=f"You vs {comp}")
     elif sub == "compare":
         board = db.leaderboard()
@@ -301,7 +313,7 @@ def handle_spy(ack, respond, command, client):
         lines = [f"{medals[i]} *{r['name']}* — {r['avg']:,} avg engagement "
                  f"({r['posts']} posts · {r['likes']:,}👍 {r['comments']:,}💬 {r['shares']:,}🔁)"
                  for i, r in enumerate(board)]
-        respond("🏆 *Competitor Leaderboard* (by avg engagement)\n" + "\n".join(lines))
+        respond(phrase("board_header") + "\n" + "\n".join(lines))
     elif not text:
         from spyglass import render
         respond(blocks=render.build_menu_blocks(), text="SpyGlass menu")
@@ -449,7 +461,7 @@ def me_audit(ack, body, client):
         try:
             audit = ai_mod.self_audit(posts, tone=TONE["current"])
             client.chat_postMessage(channel=ch,
-                blocks=render.build_self_audit_blocks(me["name"], audit), text="Your audit")
+                blocks=render.build_self_audit_blocks(me["name"], audit, tone=TONE["current"]), text="Your audit")
         except Exception as e:
             client.chat_postMessage(channel=ch, text=f":x: {e}")
     threading.Thread(target=work, daemon=True).start()
@@ -487,7 +499,7 @@ def run_compare_modal(ack, body, view, client):
         try:
             cmp = ai_mod.compare(me["name"], my_posts, comp, comp_posts, tone=TONE["current"])
             client.chat_postMessage(channel=dest,
-                blocks=render.build_comparison_blocks(me["name"], comp, cmp), text="Comparison")
+                blocks=render.build_comparison_blocks(me["name"], comp, cmp, tone=TONE["current"]), text="Comparison")
         except Exception as e:
             client.chat_postMessage(channel=dest, text=f":x: {e}")
     threading.Thread(target=work, daemon=True).start()
