@@ -92,6 +92,41 @@ def handle_setcomp(ack, respond, command):
 TONE = {"current": "default"}  # /tone easter egg state
 
 
+# Persona-flavored status lines — the tone colors EVERY reply, not just the AI analysis.
+PHRASES = {
+    "default": {
+        "self_detected": "🪞 That's *your* account — pulling your full history and auditing you…",
+        "scan_start":    "🔍 SpyGlass is on the case{scope} — scanning now…",
+        "scan_menu":     "🔍 SpyGlass is scanning your competitors now…",
+        "quiet":         "🕯️ Nothing new in the last 24h, and no posts due a growth re-check. The street is quiet.",
+        "quiet_short":   "🕯️ Nothing new in the last 24h. The street is quiet.",
+        "dossier_start": "🗂️ Compiling the content dossier on *{target}* — pulling a month of posts, decoding the playbook. Give me a minute…",
+        "audit_start":   "🪞 Auditing your account — finding pain points and quick wins…",
+        "audit_short":   "🪞 Auditing your account…",
+        "compare_start": "⚔️ Comparing you against *{comp}*…",
+        "compare_named": "⚔️ Comparing *{me}* vs *{comp}*…",
+    },
+    "sherlock": {
+        "self_detected": "🎩 *Ah — your own file.* Allow me to retrieve your complete history and deduce what it betrays…",
+        "scan_start":    "🔍 *The game is afoot{scope}.* I shall survey the field for fresh tracks…",
+        "scan_menu":     "🔍 *The game is afoot.* I turn my glass upon your rivals…",
+        "quiet":         "🕯️ *Curious — the dog did not bark.* Nothing new these 24 hours, and no post awaits re-examination. The trail is cold… for now.",
+        "quiet_short":   "🕯️ *The dog did not bark* — nothing new in 24 hours. The trail is cold.",
+        "dossier_start": "🗂️ *A most instructive subject.* Grant me a moment to study a month of *{target}*'s conduct and deduce their methods…",
+        "audit_start":   "🔍 *Elementary — let us turn the glass upon ourselves.* Reading your record for the tells you cannot see…",
+        "audit_short":   "🔍 *Turning the glass upon yourself…*",
+        "compare_start": "⚔️ *Let us lay the two records side by side* — you against *{comp}*. The deductions will be telling…",
+        "compare_named": "⚔️ *Two files, one comparison* — *{me}* set against *{comp}*…",
+    },
+}
+
+
+def phrase(key, **kw):
+    """Return a status line in the current persona's voice."""
+    table = PHRASES.get(TONE["current"], PHRASES["default"])
+    return table.get(key, PHRASES["default"][key]).format(**kw)
+
+
 @app.command("/spy")
 def handle_spy(ack, respond, command, client):
     ack()
@@ -106,7 +141,7 @@ def handle_spy(ack, respond, command, client):
         is_self = bool(target and me and target.lower() in me["name"].lower())
         ch = command.get("channel_id")
         if is_self:
-            respond("🪞 That's *your* account — pulling your full history and auditing you…")
+            respond(phrase("self_detected"))
             from spyglass import flows, ai as ai_mod, render
             try:
                 flows.backfill_account(me["name"])
@@ -122,7 +157,7 @@ def handle_spy(ack, respond, command, client):
             return
         # Competitor path: 24h incremental scan
         scope = f" on *{target}*" if target else ""
-        respond(f"🔍 SpyGlass is on the case{scope} — scanning now…")
+        respond(phrase("scan_start", scope=scope))
         from spyglass import flows
         try:
             status = flows.run_daily(client, ch, tone=TONE["current"], name_filter=target)
@@ -130,15 +165,13 @@ def handle_spy(ack, respond, command, client):
             respond(f":x: Scan failed:\n```{e}```")
             return
         if status == "quiet":
-            respond("🕯️ Nothing new in the last 24h, and no posts due a growth re-check. "
-                    "The street is quiet.")
+            respond(phrase("quiet"))
     elif sub == "analyze":
         target = rest.strip()
         if not target:
             respond("Usage: `/spy analyze <competitor>` — e.g. `/spy analyze openai`")
             return
-        respond(f"🗂️ Compiling the content dossier on *{target}* — pulling a month of posts, "
-                "decoding the playbook. Give me a minute…")
+        respond(phrase("dossier_start", target=target))
         from spyglass import flows
         try:
             status = flows.run_deep_analysis(client, command.get("channel_id"),
@@ -218,7 +251,7 @@ def handle_spy(ack, respond, command, client):
         respond(f"🪞 Set *{name}* as *your* account. Now `/spy check {name}` to scan it, "
                 f"then `/spy me` for your audit or `/spy vs <competitor>` to compare.")
     elif sub == "me":
-        respond("🪞 Auditing your account — finding pain points and quick wins…")
+        respond(phrase("audit_start"))
         from spyglass import ai as ai_mod, render
         me = db.get_self()
         posts = db.get_self_posts()
@@ -241,7 +274,7 @@ def handle_spy(ack, respond, command, client):
         if not comp:
             respond("Usage: `/spy vs <competitor>` — compare your account against them")
             return
-        respond(f"⚔️ Comparing you against *{comp}*…")
+        respond(phrase("compare_start", comp=comp))
         from spyglass import ai as ai_mod, render
         me = db.get_self()
         my_posts = db.get_self_posts()
@@ -313,14 +346,14 @@ def menu_scan(ack, body, client):
     ack()
     import threading
     ch = _menu_channel(body)
-    client.chat_postMessage(channel=ch, text="🔍 SpyGlass is scanning your competitors now…")
+    client.chat_postMessage(channel=ch, text=phrase("scan_menu"))
     from spyglass import flows
 
     def work():
         try:
             status = flows.run_daily(client, ch, tone=TONE["current"])
             if status == "quiet":
-                client.chat_postMessage(channel=ch, text="🕯️ Nothing new in the last 24h. The street is quiet.")
+                client.chat_postMessage(channel=ch, text=phrase("quiet_short"))
         except Exception as e:
             client.chat_postMessage(channel=ch, text=f":x: Scan failed: {e}")
     threading.Thread(target=work, daemon=True).start()
@@ -412,7 +445,7 @@ def me_audit(ack, body, client):
             client.chat_postMessage(channel=ch, text=f"*{me['name']}* isn't scanned yet — "
                                     f"run `/spy check {me['name']}` first.")
             return
-        client.chat_postMessage(channel=ch, text="🪞 Auditing your account…")
+        client.chat_postMessage(channel=ch, text=phrase("audit_short"))
         try:
             audit = ai_mod.self_audit(posts, tone=TONE["current"])
             client.chat_postMessage(channel=ch,
@@ -450,7 +483,7 @@ def run_compare_modal(ack, body, view, client):
         if not comp_posts:
             client.chat_postMessage(channel=dest, text=f"No intel on *{comp}* yet — scan it first.")
             return
-        client.chat_postMessage(channel=dest, text=f"⚔️ Comparing *{me['name']}* vs *{comp}*…")
+        client.chat_postMessage(channel=dest, text=phrase("compare_named", me=me['name'], comp=comp))
         try:
             cmp = ai_mod.compare(me["name"], my_posts, comp, comp_posts, tone=TONE["current"])
             client.chat_postMessage(channel=dest,
