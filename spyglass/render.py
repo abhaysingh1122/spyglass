@@ -454,6 +454,9 @@ def build_self_audit_blocks(name: str, audit: dict) -> list:
             "text": f"🪞 Your Account Audit — {name}", "emoji": True}},
         {"type": "divider"},
     ]
+    if audit.get("profile_read"):
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f"*Profile read:* {audit['profile_read']}"}})
     if audit.get("whats_working"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
             "text": "✅ *What's working*\n" + "\n".join(f"• {w}" for w in audit["whats_working"])}})
@@ -477,17 +480,17 @@ def build_comparison_blocks(my_name: str, comp_name: str, cmp: dict) -> list:
             "text": f"*The verdict:* {cmp.get('verdict', '—')}"}},
         {"type": "divider"},
     ]
-    if cmp.get("where_they_win"):
+    if cmp.get("why_they_win"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": f"📉 *Where {comp_name} beats you*\n" +
-                    "\n".join(f"• {w}" for w in cmp["where_they_win"])}})
+            "text": f"📉 *Why {comp_name} out-performs*\n" +
+                    "\n".join(f"• {w}" for w in cmp["why_they_win"])}})
     if cmp.get("our_edge"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
             "text": "💪 *Your edge*\n" + "\n".join(f"• {w}" for w in cmp["our_edge"])}})
-    if cmp.get("steal"):
+    if cmp.get("strategy"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "💡 *Steal this from them*\n" +
-                    "\n".join(f"{i}. {w}" for i, w in enumerate(cmp["steal"], 1))}})
+            "text": "♟️ *Strategy to close the gap*\n" +
+                    "\n".join(f"{i}. {w}" for i, w in enumerate(cmp["strategy"], 1))}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
         "text": "_SpyGlass is watching_ 🔍"}]})
     return blocks
