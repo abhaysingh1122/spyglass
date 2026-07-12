@@ -2,6 +2,63 @@
 import datetime as dt
 
 
+# Tone-aware scaffolding — headers, section labels and footers speak the active persona.
+_LABELS = {
+    "default": {
+        "audit_header": "🪞 Your Account Audit — {name}",
+        "profile_read": "*Profile read:*",
+        "working":      "✅ *What's working*",
+        "pains":        "🩹 *Pain points*",
+        "wins":         "⚡ *Quick wins this week*",
+        "audit_footer": "_SpyGlass is watching — including you_ 🔍",
+        "vs_header":    "⚔️ {me} vs {comp}",
+        "verdict":      "*The verdict:*",
+        "why_win":      "📉 *Why {comp} out-performs*",
+        "your_edge":    "💪 *Your edge*",
+        "strategy":     "♟️ *Strategy to close the gap*",
+        "dossier_header": "🗂️ Content Dossier — {name}",
+        "dossier_sub":  "Compiled from *{n} posts* · SpyGlass Content Spy",
+        "d_verdict":    "⚖️ *Verdict:*",
+        "hook_matrix":  "🪝 *Hook Matrix* (what grabs, what flops)",
+        "content_mix":  "📂 *Content Mix*",
+        "cadence":      "⏱️ *Cadence:*",
+        "top_post":     "🏆 *Their best weapon:*",
+        "gaps":         "🎯 *Exploitable gaps*",
+        "playbook":     "💡 *Steal-this playbook*",
+        "footer":       "_SpyGlass is watching_ 🔍",
+    },
+    "sherlock": {
+        "audit_header": "🎩 A Study in You — {name}",
+        "profile_read": "*The observation:*",
+        "working":      "✅ *Points in your favour*",
+        "pains":        "🩹 *The case against you*",
+        "wins":         "⚡ *Deductions to act upon this week*",
+        "audit_footer": "_The game is afoot — and you are not exempt from scrutiny_ 🔍",
+        "vs_header":    "⚔️ {me} contra {comp}",
+        "verdict":      "*The deduction:*",
+        "why_win":      "📉 *How {comp} bests you*",
+        "your_edge":    "💪 *Where you hold the advantage*",
+        "strategy":     "♟️ *The plan of attack*",
+        "dossier_header": "🗂️ A Casebook on {name}",
+        "dossier_sub":  "Deduced from *{n} posts* · SpyGlass, Consulting Detective",
+        "d_verdict":    "⚖️ *The deduction:*",
+        "hook_matrix":  "🪝 *The Hooks* (which snare, which fail)",
+        "content_mix":  "📂 *The Composition*",
+        "cadence":      "⏱️ *Their rhythm:*",
+        "top_post":     "🏆 *Their finest work:*",
+        "gaps":         "🎯 *The openings to exploit*",
+        "playbook":     "💡 *Methods worth appropriating*",
+        "footer":       "_The game is afoot_ 🔍",
+    },
+}
+
+
+def L(key, tone="default", **kw):
+    """Tone-aware label lookup for block scaffolding."""
+    tbl = _LABELS.get(tone, _LABELS["default"])
+    return tbl.get(key, _LABELS["default"][key]).format(**kw)
+
+
 def _ago(posted_iso) -> str:
     if not posted_iso:
         return ""
@@ -448,63 +505,63 @@ def build_prediction_blocks(name: str, pred: dict) -> list:
     return blocks
 
 
-def build_self_audit_blocks(name: str, audit: dict) -> list:
+def build_self_audit_blocks(name: str, audit: dict, tone: str = "default") -> list:
     blocks = [
         {"type": "header", "text": {"type": "plain_text",
-            "text": f"🪞 Your Account Audit — {name}", "emoji": True}},
+            "text": L("audit_header", tone, name=name), "emoji": True}},
         {"type": "divider"},
     ]
     if audit.get("profile_read"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": f"*Profile read:* {audit['profile_read']}"}})
+            "text": f"{L('profile_read', tone)} {audit['profile_read']}"}})
     if audit.get("whats_working"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "✅ *What's working*\n" + "\n".join(f"• {w}" for w in audit["whats_working"])}})
+            "text": L("working", tone) + "\n" + "\n".join(f"• {w}" for w in audit["whats_working"])}})
     if audit.get("pain_points"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "🩹 *Pain points*\n" + "\n".join(f"• {w}" for w in audit["pain_points"])}})
+            "text": L("pains", tone) + "\n" + "\n".join(f"• {w}" for w in audit["pain_points"])}})
     if audit.get("quick_wins"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "⚡ *Quick wins this week*\n" +
+            "text": L("wins", tone) + "\n" +
                     "\n".join(f"{i}. {w}" for i, w in enumerate(audit["quick_wins"], 1))}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
-        "text": "_SpyGlass is watching — including you_ 🔍"}]})
+        "text": L("audit_footer", tone)}]})
     return blocks
 
 
-def build_comparison_blocks(my_name: str, comp_name: str, cmp: dict) -> list:
+def build_comparison_blocks(my_name: str, comp_name: str, cmp: dict, tone: str = "default") -> list:
     blocks = [
         {"type": "header", "text": {"type": "plain_text",
-            "text": f"⚔️ {my_name} vs {comp_name}", "emoji": True}},
+            "text": L("vs_header", tone, me=my_name, comp=comp_name), "emoji": True}},
         {"type": "section", "text": {"type": "mrkdwn",
-            "text": f"*The verdict:* {cmp.get('verdict', '—')}"}},
+            "text": f"{L('verdict', tone)} {cmp.get('verdict', '—')}"}},
         {"type": "divider"},
     ]
     if cmp.get("why_they_win"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": f"📉 *Why {comp_name} out-performs*\n" +
+            "text": L("why_win", tone, comp=comp_name) + "\n" +
                     "\n".join(f"• {w}" for w in cmp["why_they_win"])}})
     if cmp.get("our_edge"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "💪 *Your edge*\n" + "\n".join(f"• {w}" for w in cmp["our_edge"])}})
+            "text": L("your_edge", tone) + "\n" + "\n".join(f"• {w}" for w in cmp["our_edge"])}})
     if cmp.get("strategy"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "♟️ *Strategy to close the gap*\n" +
+            "text": L("strategy", tone) + "\n" +
                     "\n".join(f"{i}. {w}" for i, w in enumerate(cmp["strategy"], 1))}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
-        "text": "_SpyGlass is watching_ 🔍"}]})
+        "text": L("footer", tone)}]})
     return blocks
 
 
-def build_dossier_blocks(name: str, result: dict, n_posts: int) -> list:
+def build_dossier_blocks(name: str, result: dict, n_posts: int, tone: str = "default") -> list:
     """Content-spy dossier — the competitor's decoded playbook."""
     blocks = [
         {"type": "header", "text": {"type": "plain_text",
-            "text": f"🗂️ Content Dossier — {name.title()}", "emoji": True}},
+            "text": L("dossier_header", tone, name=name.title()), "emoji": True}},
         {"type": "context", "elements": [
-            {"type": "mrkdwn", "text": f"Compiled from *{n_posts} posts* · SpyGlass Content Spy"}]},
+            {"type": "mrkdwn", "text": L("dossier_sub", tone, n=n_posts)}]},
         {"type": "section", "text": {"type": "mrkdwn",
-            "text": f"⚖️ *Verdict:* {result.get('verdict', '—')}"}},
+            "text": f"{L('d_verdict', tone)} {result.get('verdict', '—')}"}},
         {"type": "divider"},
     ]
 
@@ -514,35 +571,35 @@ def build_dossier_blocks(name: str, result: dict, n_posts: int) -> list:
                  f"~{h.get('avg_engagement', 0):,} avg engagement — _{h.get('verdict', '')}_"
                  for h in hm]
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "🪝 *Hook Matrix* (what grabs, what flops)\n" + "\n".join(lines)}})
+            "text": L("hook_matrix", tone) + "\n" + "\n".join(lines)}})
 
     cm = result.get("content_mix") or []
     if cm:
         lines = [f"• {c.get('content_type', '?')}: *{c.get('share_pct', 0)}%* — {c.get('note', '')}"
                  for c in cm]
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "📂 *Content Mix*\n" + "\n".join(lines)}})
+            "text": L("content_mix", tone) + "\n" + "\n".join(lines)}})
 
     if result.get("cadence"):
         blocks.append({"type": "context", "elements": [
-            {"type": "mrkdwn", "text": f"⏱️ *Cadence:* {result['cadence']}"}]})
+            {"type": "mrkdwn", "text": f"{L('cadence', tone)} {result['cadence']}"}]})
 
     tp = result.get("top_post") or {}
     if tp:
         blocks += [{"type": "divider"},
                    {"type": "section", "text": {"type": "mrkdwn",
-                    "text": f"🏆 *Their best weapon:* {tp.get('one_liner', '—')} "
+                    "text": f"{L('top_post', tone)} {tp.get('one_liner', '—')} "
                             f"({tp.get('engagement', '')})\n>{tp.get('why_it_won', '')}"}}]
 
     if result.get("weaknesses"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "🎯 *Exploitable gaps*\n" + "\n".join(f"• {w}" for w in result["weaknesses"])}})
+            "text": L("gaps", tone) + "\n" + "\n".join(f"• {w}" for w in result["weaknesses"])}})
 
     if result.get("playbook"):
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
-            "text": "💡 *Steal-this playbook*\n" + "\n".join(f"{i}. {p}" for i, p in
-                                                             enumerate(result["playbook"], 1))}})
+            "text": L("playbook", tone) + "\n" + "\n".join(f"{i}. {p}" for i, p in
+                                                            enumerate(result["playbook"], 1))}})
 
     blocks.append({"type": "context", "elements": [
-        {"type": "mrkdwn", "text": "Full dossier in the attached document · _SpyGlass is watching_ 🔍"}]})
+        {"type": "mrkdwn", "text": f"Full dossier in the attached document · {L('footer', tone)}"}]})
     return blocks
