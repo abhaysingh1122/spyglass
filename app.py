@@ -696,14 +696,21 @@ except Exception as _e:
 
 # --- daily auto-report scheduler ------------------------------------------
 def _scheduler():
-    """Runs the daily flow automatically once per day at DAILY_HOUR local time."""
+    """Runs the daily flow once per day at DAILY_HOUR in SCHEDULE_TZ (default 06:00 Asia/Kolkata / IST).
+    Render servers run in UTC, so we convert explicitly — otherwise DAILY_HOUR=6 would mean 6am UTC (11:30am IST)."""
     import time
     import datetime as dt
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(os.environ.get("SCHEDULE_TZ", "Asia/Kolkata"))
+    except Exception:
+        tz = dt.timezone(dt.timedelta(hours=5, minutes=30))  # IST has no DST — fixed offset is always correct
     from spyglass import flows
-    hour = int(os.environ.get("DAILY_HOUR", "9"))
+    hour = int(os.environ.get("DAILY_HOUR", "6"))
     last_run_date = None
+    print(f"[scheduler] armed: daily brief at {hour:02d}:00 {os.environ.get('SCHEDULE_TZ', 'Asia/Kolkata')}")
     while True:
-        now = dt.datetime.now()
+        now = dt.datetime.now(tz)
         if now.hour == hour and last_run_date != now.date():
             try:
                 socials = db.get_active_socials()
