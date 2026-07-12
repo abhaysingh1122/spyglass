@@ -32,6 +32,16 @@ def detect_platform(url: str) -> str:
 URL_RE = re.compile(r"https?://[^\s|>]+")
 
 
+def extract_url(text: str):
+    """Pull a URL from text, accepting scheme-less forms like www.linkedin.com/in/x."""
+    text = (text or "").strip().strip("<>")
+    m = URL_RE.search(text)
+    if m:
+        return m.group(0)
+    m = re.search(r"(?:www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:/[^\s|>]*)?", text, re.I)
+    return "https://" + m.group(0) if m else None
+
+
 def derive_name(url: str) -> str:
     slug = re.sub(r"[?#].*$", "", url.rstrip("/")).split("/")[-1]
     slug = slug.replace("-", " ").replace("_", " ").strip()
@@ -43,11 +53,10 @@ def derive_name(url: str) -> str:
 def handle_setcomp(ack, respond, command):
     ack()  # must respond within 3s
     text = (command.get("text") or "").strip()
-    match = URL_RE.search(text)
-    if not match:
-        respond(":warning: Usage: `/setcomp https://linkedin.com/company/acme`")
+    url = extract_url(text)
+    if not url:
+        respond(":warning: Usage: `/setcomp linkedin.com/company/acme`")
         return
-    url = match.group(0)
     platform = detect_platform(url)
     name = derive_name(url)
 
@@ -175,11 +184,10 @@ def handle_spy(ack, respond, command, client):
             respond("🕯️ No posts are due a 7-day growth re-check yet. "
                     "(Posts become due once they're 7 days past their last check.)")
     elif sub == "setself":
-        match = URL_RE.search(rest)
-        if not match:
+        url = extract_url(rest)
+        if not url:
             respond("Usage: `/spy setself <your profile url>` — register YOUR account")
             return
-        url = match.group(0)
         name = derive_name(url)
         try:
             db.add_competitor(name, detect_platform(url), url,
@@ -343,13 +351,12 @@ def me_set(ack, body, client):
 @app.view("set_self_submit")
 def set_self_submit(ack, body, view, client):
     ack()
-    import re as _re
     channel = view.get("private_metadata") or body["user"]["id"]
-    url_m = _re.search(r"https?://[^\s|>]+", view["state"]["values"]["url"]["v"]["value"] or "")
-    if not url_m:
-        client.chat_postMessage(channel=channel, text=":warning: That didn't look like a URL.")
+    url = extract_url(view["state"]["values"]["url"]["v"]["value"])
+    if not url:
+        client.chat_postMessage(channel=channel,
+            text=":warning: That didn't look like a URL. Try e.g. `linkedin.com/in/yourname`.")
         return
-    url = url_m.group(0)
     name = derive_name(url)
     db.add_competitor(name, detect_platform(url), url, added_by=body["user"]["id"],
                       slack_channel=channel, is_self=True)
