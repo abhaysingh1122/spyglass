@@ -750,8 +750,15 @@ def _health_server():
         def log_message(self, *a):
             pass
 
-    with socketserver.TCPServer(("", port), H) as httpd:
-        httpd.serve_forever()
+    # allow_reuse_address avoids WinError 10048 when a prior instance left the
+    # port in TIME_WAIT; if it's still genuinely taken, skip quietly rather than
+    # crashing a daemon thread with a scary traceback.
+    socketserver.TCPServer.allow_reuse_address = True
+    try:
+        with socketserver.TCPServer(("", port), H) as httpd:
+            httpd.serve_forever()
+    except OSError as e:
+        print(f"[health] port {port} unavailable ({e}); skipping health server (Slack socket unaffected)")
 
 
 if __name__ == "__main__":
