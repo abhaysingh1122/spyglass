@@ -19,6 +19,33 @@ GROWTH_INTERVAL_DAYS = 7    # re-check engagement weekly per post
 MAX_COMMENTS = 5
 
 
+def _upload_docx(slack_client, channel: str, path: str, title: str, comment: str):
+    """Upload a file to a channel.
+
+    chat.postMessage works in a public channel without joining (chat:write.public),
+    but files.upload requires actual membership — so a brand-new channel silently
+    drops files while text still lands. Join first, then upload, and surface any
+    failure in the channel instead of only in the logs.
+    """
+    try:
+        slack_client.conversations_join(channel=channel)
+    except Exception:
+        pass  # already a member, or private/DM where join isn't possible
+
+    try:
+        slack_client.files_upload_v2(channel=channel, file=path,
+                                     title=title, initial_comment=comment)
+        return True
+    except Exception as e:
+        print(f"[flows] docx upload failed: {e}")
+        slack_client.chat_postMessage(
+            channel=channel,
+            text=(f":warning: I built the report but couldn't upload the file here.\n"
+                  f"If this is a private channel, invite me first: `/invite @SpyGlass`\n"
+                  f"```{e}```"))
+        return False
+
+
 def _now():
     return dt.datetime.now(dt.timezone.utc)
 
@@ -285,12 +312,9 @@ def run_deep_analysis(slack_client, channel: str, name: str,
     docx_path = report.build_dossier_docx(name, result, posts, comp_names)
     slack_client.chat_postMessage(channel=channel, blocks=blocks,
                                   text=f"SpyGlass Content Dossier — {name}")
-    try:
-        slack_client.files_upload_v2(channel=channel, file=docx_path,
-                                     title=f"SpyGlass Dossier — {name}",
-                                     initial_comment="🗂️ Full content-spy dossier attached.")
-    except Exception as e:
-        print(f"[flows] dossier docx upload failed: {e}")
+    _upload_docx(slack_client, channel, docx_path,
+                 f"SpyGlass Dossier — {name}",
+                 "🗂️ Full content-spy dossier attached.")
     return "sent"
 
 
@@ -319,12 +343,9 @@ def run_daily(slack_client, channel: str, tone: str = "default",
         channel=channel, blocks=blocks,
         text=f"SpyGlass Daily Intel — {len(new_posts)} new post(s)")
     if docx_path:
-        try:
-            slack_client.files_upload_v2(channel=channel, file=docx_path,
-                                         title="SpyGlass Daily Intel",
-                                         initial_comment="📄 Full breakdown attached.")
-        except Exception as e:
-            print(f"[flows] docx upload failed (scope?): {e}")
+        _upload_docx(slack_client, channel, docx_path,
+                     "SpyGlass Daily Intel",
+                     "📄 Full breakdown attached.")
     db.save_daily_brief([p.get("competitor_id") for p in new_posts],
                         result.get("overall_pattern", ""), docx_path, resp["ts"])
     return "sent"
