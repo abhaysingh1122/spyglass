@@ -1,102 +1,169 @@
-# SpyGlass — Demo Video Script
+# SpyGlass — FULL Demo Video Runbook
 
-**Target length:** 2:45 (hard cap 3:00 — judges are not required to watch past 3 min)
-**Format:** Screen recording of Slack. No face, no live mic required.
-**Voiceover:** AI-generated from the VO lines below (or read aloud if preferred).
-**Music:** Royalty-free ONLY (rules forbid copyrighted music).
-**Captions:** Burn in subtitles — judges may watch muted.
-
----
-
-## Pre-record checklist
-
-- [ ] Bot is live (Render) and replying — test one command first
-- [ ] Slack window clean: no unrelated channels, no DMs visible, no personal info
-- [ ] Zoom Slack to ~125% so text is legible when compressed by YouTube
-- [ ] At least 2 competitors already added, so `/spy compare` has real data
-- [ ] Your own account already set (`/spy setself`) and backfilled
-- [ ] Record at 1080p, screen only
+**Length:** 2:50 (hard cap 3:00)
+**Format:** Screen recording of Slack ONLY. No face. No live mic.
+**Voice:** AI voiceover generated from the VO lines (or read aloud).
+**Music:** Royalty-free ONLY — copyrighted music breaks the rules.
+**Captions:** Burn in. Judges may watch muted.
 
 ---
 
-## SECTION 1 — The Problem (0:00 – 0:20)
+# PART A — BEFORE YOU HIT RECORD
 
-**SHOT:** Slack channel, empty. Then `/spy` typed slowly, menu appears.
+Do all of this FIRST. Do not record until every box is ticked.
+
+- [ ] Bot is live and replying (fire one test command, confirm you get a reply)
+- [ ] **2+ competitors already added** — so `/spy compare` has real data to show
+- [ ] **Your own account already set** (`/spy setself <your linkedin url>`) and backfilled
+- [ ] Slack window is CLEAN: close DMs, hide unrelated channels, no personal info on screen
+- [ ] Zoom Slack to ~125% (Ctrl +) so text survives YouTube compression
+- [ ] Record 1080p, screen only
+- [ ] Create a fresh channel named `#spyglass` so it looks purposeful, not like a test dump
+
+**IMPORTANT:** Run every command ONCE before recording. The scrapes take time. If a command is slow on camera, you cut the dead air out in editing — but you don't want a *failure* on camera.
+
+---
+
+# PART B — THE SHOT LIST (record in this exact order)
+
+---
+
+## 🎬 SHOT 1 — THE OPEN (0:00 – 0:08)
+
+**START HERE. This is your first frame.**
+
+**SCREEN:** A clean, empty `#spyglass` Slack channel. Nothing else. Hold still for 2 seconds.
 
 **VO:**
-> Every team says "keep an eye on the competition." Nobody actually does it — because it means scrolling LinkedIn, Instagram, and X every single day, and guessing what's working.
-> SpyGlass does it for you. It lives in Slack.
+> "Every company says: keep an eye on the competition."
 
----
-
-## SECTION 2 — Add a Competitor (0:20 – 0:40)
-
-**SHOT:** Type `/setcomp https://www.linkedin.com/in/<competitor>` → confirmation appears.
+**SCREEN:** Now slowly type `/spy` into the message box. Don't hit enter yet — let them read it.
 
 **VO:**
-> You point it at a competitor — LinkedIn, Instagram, X, or their website. That's the whole setup.
-> SpyGlass scrapes their post history and starts watching.
+> "Almost nobody actually does."
 
 ---
 
-## SECTION 3 — The Daily Intel (0:40 – 1:05)
+## 🎬 SHOT 2 — THE MENU (0:08 – 0:22)
 
-**SHOT:** `/spy check <competitor>` → "scanning" → intel card renders with new posts + engagement.
+**SCREEN:** Hit Enter on `/spy`. The button menu renders (🔍 Scan · 🗂️ Analyze · 💬 Ask · 🪞 My Account · 🏆 Compare · ⚙️ Manage). Let the buttons land on screen. Hold 2 seconds.
 
 **VO:**
-> Every morning it scans for new posts and drops the intel straight into your channel — what they published, how it performed, and what's actually working.
-> No dashboard. No new tab. It comes to you.
+> "Because doing it properly means scrolling LinkedIn, Instagram and X every single day — and then guessing what's actually working."
+> "SpyGlass does it for you. And it lives where your team already is. Slack."
 
 ---
 
-## SECTION 4 — The Dossier (1:05 – 1:30)
+## 🎬 SHOT 3 — ADD A COMPETITOR (0:22 – 0:40)
 
-**SHOT:** `/spy analyze <competitor>` → dossier blocks render → Word doc appears in channel. Briefly open the doc.
+**SCREEN:** Type and send:
+```
+/setcomp https://www.linkedin.com/in/<competitor-handle>
+```
+Confirmation message appears.
 
 **VO:**
-> Go deeper and it builds a full content dossier — their hooks, their cadence, their top-performing topics — and hands you a Word document you can take into a meeting.
+> "Setup is one command. You point it at a competitor — a LinkedIn profile, an Instagram, an X account, or just their website."
+> "SpyGlass pulls their post history, and starts watching."
 
 ---
 
-## SECTION 5 — The Twist: It Audits YOU (1:30 – 2:05)  ⭐ THE DIFFERENTIATOR
+## 🎬 SHOT 4 — THE DAILY INTEL (0:40 – 1:08)
 
-**SHOT:** Click 🪞 **My Account** → **Audit me** → self-audit renders (pain points + quick wins).
+**SCREEN:** Type and send:
+```
+/spy check <competitor name>
+```
+Show the "scanning" state, then the intel card rendering — new posts, engagement numbers.
+
+*(In editing: cut the waiting time. Scan → card should feel instant.)*
 
 **VO:**
-> Here's where SpyGlass is different. Most tools only watch other people. SpyGlass turns the lens around — and audits *you*.
-> It pulls your entire post history and tells you the truth: your cadence is thin, your hooks are inconsistent, your posts get likes but almost no shares.
-> Every number here is computed from your real data. Not guessed.
+> "Every morning, SpyGlass scans for anything new — and drops the intel straight into your channel."
+> "What they posted. How it performed. What's working for them right now."
+> "There's no dashboard to check. No extra tab. It comes to you."
 
 ---
 
-## SECTION 6 — Profile vs Profile (2:05 – 2:35)
+## 🎬 SHOT 5 — THE DOSSIER (1:08 – 1:32)
 
-**SHOT:** Click ⚔️ **Compare vs** → pick competitor → comparison renders. Pause on the ALGORITHMIC vs STRUCTURAL split.
+**SCREEN:** Type and send:
+```
+/spy analyze <competitor name>
+```
+The dossier blocks render. **Then the Word document appears in the channel.** Click it — show the doc open for ~2 seconds, then close.
 
 **VO:**
-> Then it puts you head-to-head with a competitor, and answers the only question that matters: *why* are they winning?
-> And it splits the answer in two. Structural — things you can't copy, like a bigger follower base. And algorithmic — the things you *can* copy, today.
-> That second list is the strategy. That's what you act on.
+> "Push it further, and it builds a full content dossier."
+> "Their hooks. Their posting cadence. The topics that actually land."
+> "And it hands you a Word document you can walk straight into a meeting with."
 
 ---
 
-## SECTION 7 — Grounded, Not Hallucinated (2:35 – 2:45)
+## 🎬 SHOT 6 — ⭐ THE TWIST: IT AUDITS *YOU* (1:32 – 2:08)
 
-**SHOT:** `/spy <a question>` → grounded answer appears. Then hold on the SpyGlass menu.
+**THIS IS THE MOST IMPORTANT SHOT IN THE VIDEO. Do not rush it.**
+
+**SCREEN:** Click the 🪞 **My Account** button → panel opens → click **🪞 Audit me**. The self-audit renders: profile read, what's working, pain points, quick wins.
+
+**Slowly scroll** through the pain points. Let the judges READ them.
 
 **VO:**
-> And you can just ask it anything — in plain English, right in Slack.
-> Every answer is grounded in scraped data, with a guardrail that stops it inventing statistics.
-> SpyGlass. It watches them. And it watches you.
+> "But here's where SpyGlass is different."
+> "Every other tool watches other people. SpyGlass turns the lens around — and audits *you*."
+> "It pulls your entire post history, and it tells you the truth. Your cadence is thin. Your hooks are inconsistent. Your posts get likes — but almost nobody shares them."
+> "And every single number on this screen was computed from your real, scraped data. Not guessed. Not invented."
 
 ---
 
-## VO word count: ~300 words → ~2:40 at natural pace. Buffer to 3:00 is intact.
+## 🎬 SHOT 7 — PROFILE VS PROFILE (2:08 – 2:38)
+
+**SCREEN:** Click ⚔️ **Compare vs** → select a competitor → the comparison renders.
+
+**HOLD AND PAUSE on the ALGORITHMIC vs STRUCTURAL split.** This is the money shot — make sure it's legible.
+
+**VO:**
+> "Then it puts you head to head — and answers the only question that actually matters."
+> "*Why* are they winning?"
+> "And it splits the answer in two. Structural: the things you can't copy — like a follower base ten times your size."
+> "And algorithmic: the things you *can* copy. Today."
+> "That second list isn't analysis. That's your strategy."
 
 ---
 
-## If you cut for time (drop in this order)
-1. Section 4 (Dossier) — nice, but Section 5 + 6 are the winning material
-2. Section 2 — can be compressed to a 3-second shot with no VO
+## 🎬 SHOT 8 — GROUNDED, NOT HALLUCINATED (2:38 – 2:50)
 
-**NEVER cut Sections 5 and 6.** They are the entire reason SpyGlass wins: every other entrant will build a "watch your competitor" bot. Only this one turns the lens around and separates copyable tactics from structural advantage.
+**SCREEN:** Type a real question in plain English:
+```
+/spy what should I post this week to close the gap?
+```
+The grounded answer renders. Then let the screen rest on the SpyGlass menu for the final 2 seconds.
+
+**VO:**
+> "And you can just… ask it. In plain English. Right in Slack."
+> "Every answer is grounded in real scraped data — with a guardrail that stops it inventing statistics."
+> *(beat)*
+> "**SpyGlass. It watches them. And it watches you.**"
+
+**SCREEN:** Fade to black. End.
+
+---
+
+# PART C — EDITING NOTES
+
+1. **Cut ALL dead air.** Every scrape takes seconds — the viewer should never wait. Command → result should feel instant.
+2. **Burn in captions.** Judges watch muted.
+3. **Zoom in** on the pain points (Shot 6) and the algorithmic/structural split (Shot 7). Those two screens win you the hackathon — make them impossible to miss.
+4. **Music:** royalty-free, low volume, subtle. Kill it under the VO.
+5. **Do not exceed 3:00.** Judges are not required to watch past it.
+
+---
+
+# PART D — IF YOU'RE OVER TIME
+
+Cut in this order:
+1. **Shot 5 (Dossier)** — good feature, but not what wins
+2. **Shot 3 (Add competitor)** — compress to a 3-second silent shot
+
+**NEVER CUT SHOT 6 OR SHOT 7.**
+Every other team in this hackathon will build a "watch your competitor" bot. Only SpyGlass turns the lens around, audits the user, and separates *what you can copy* from *what you can't*. That is the entire reason it wins. Protect those 60 seconds at all costs.
