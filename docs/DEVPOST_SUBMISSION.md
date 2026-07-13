@@ -102,7 +102,15 @@ apify, firecrawl, openrouter, minimax, render, python-docx
 ## TRY IT OUT (links)
 
 - GitHub repo: `https://github.com/abhaysingh1122/spyglass`
-- (optional) Slack sandbox invite link
+- Slack developer sandbox: `https://spyglass.enterprise.slack.com`
+
+### Judge access checklist (do BEFORE submitting)
+- [ ] Invite `slackhack@salesforce.com` to the sandbox
+- [ ] Invite `testing@devpost.com` to the sandbox
+- [ ] SpyGlass app installed in the sandbox workspace
+- [ ] `#spyglass` channel exists, bot is a member
+- [ ] 2-3 competitors pre-loaded so /spy compare and /spy analyze return data instantly
+- [ ] Pinned message in the channel: "Start here -> type /spy"
 
 ---
 
