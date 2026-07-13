@@ -85,13 +85,34 @@ def _call(system: str, user: str, max_tokens: int = 1800, json_mode: bool = Fals
     return content
 
 
+def _loads(candidate: str):
+    """Parse JSON that an LLM wrote. Scraped post text carries raw quotes and
+    newlines the model doesn't always escape, so strict parsing is not enough.
+    Escalate: strict -> control-chars-allowed -> structural repair."""
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+    try:
+        return json.loads(candidate, strict=False)  # tolerate raw \n and tabs in strings
+    except json.JSONDecodeError:
+        pass
+    from json_repair import repair_json          # fixes unescaped quotes, trailing commas
+    return json.loads(repair_json(candidate))
+
+
 def _parse_json(text: str):
-    """Guardrail code-node: strip fences, extract JSON, repair truncation. Loud on failure."""
+    """Guardrail code-node: strip fences, extract JSON, repair. Loud on failure."""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)  # drop reasoning-model chatter
     text = re.sub(r"```(?:json)?", "", text).strip().strip("`")
+
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if m:
-        return json.loads(m.group(0))
+        try:
+            return _loads(m.group(0))
+        except Exception:
+            pass  # fall through to truncation repair rather than dying here
+
     # Truncation repair: output started as JSON but was cut off — close open structures.
     start = text.find("{")
     if start == -1:
@@ -103,9 +124,9 @@ def _parse_json(text: str):
     opens_arr = frag.count("[") - frag.count("]")
     frag += "]" * max(opens_arr, 0) + "}" * max(opens, 0)
     try:
-        return json.loads(frag)
-    except Exception:
-        raise ValueError(f"AI JSON truncated beyond repair. Raw head: {text[:300]}")
+        return _loads(frag)
+    except Exception as e:
+        raise ValueError(f"AI JSON unparseable ({e}). Raw head: {text[:300]}")
 
 
 def daily_brief(new_posts: list, growth_updates: list, tone: str = "default") -> dict:
