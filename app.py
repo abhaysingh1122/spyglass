@@ -745,6 +745,11 @@ def _scheduler():
     Render servers run in UTC, so we convert explicitly — otherwise DAILY_HOUR=6 would mean 6am UTC (11:30am IST)."""
     import time
     import datetime as dt
+    # Off by default — the daily scan re-scrapes every competitor through Apify and
+    # burns credits. Set DAILY_ENABLED=1 to turn it back on (e.g. for a live demo).
+    if os.environ.get("DAILY_ENABLED", "0") not in ("1", "true", "True"):
+        print("[scheduler] daily auto-scan DISABLED (set DAILY_ENABLED=1 to enable)")
+        return
     try:
         from zoneinfo import ZoneInfo
         tz = ZoneInfo(os.environ.get("SCHEDULE_TZ", "Asia/Kolkata"))
