@@ -815,6 +815,13 @@ if __name__ == "__main__":
     import threading
     threading.Thread(target=_health_server, daemon=True).start()
     threading.Thread(target=_scheduler, daemon=True).start()
+    try:                                    # surface token count at boot — a stale env
+        from spyglass import sources         # shows up here instead of mid-scrape
+        _t = sources._tokens()
+        print(f"[apify] {len(_t)} token(s) loaded, ending: "
+              + ", ".join(t[-6:] for t in _t))
+    except Exception as _e:
+        print(f"[apify] token config problem: {_e}")
     handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
     print("SpyGlass running (Socket Mode) — health server + daily scheduler armed")
     handler.start()
