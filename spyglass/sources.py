@@ -13,21 +13,67 @@ import os
 import requests
 from apify_client import ApifyClient
 
-_apify = None
+_apify_clients = {}
+_token_idx = 0
+
+
+def _tokens() -> list:
+    """All Apify tokens, in rotation order. Accepts either a comma-separated
+    APIFY_TOKENS, or APIFY_TOKEN / APIFY_TOKEN_2 / APIFY_TOKEN_3."""
+    multi = os.environ.get("APIFY_TOKENS", "")
+    if multi.strip():
+        toks = [t.strip() for t in multi.split(",") if t.strip()]
+    else:
+        toks = [os.environ.get(k, "").strip() for k in
+                ("APIFY_TOKEN", "APIFY_TOKEN_2", "APIFY_TOKEN_3")]
+        toks = [t for t in toks if t]
+    if not toks:
+        raise RuntimeError("No Apify token configured (set APIFY_TOKEN or APIFY_TOKENS)")
+    return toks
 
 
 def apify() -> ApifyClient:
-    global _apify
-    if _apify is None:
-        _apify = ApifyClient(os.environ["APIFY_TOKEN"])
-    return _apify
+    """Client for the token we're currently on."""
+    tok = _tokens()[_token_idx % len(_tokens())]
+    if tok not in _apify_clients:
+        _apify_clients[tok] = ApifyClient(tok)
+    return _apify_clients[tok]
 
 
-def _dataset_items(run) -> list:
+def _is_quota_error(e) -> bool:
+    msg = str(e).lower()
+    return any(s in msg for s in
+               ("usage hard limit", "monthly usage", "exceeded", "limit exceeded",
+                "quota", "payment required", "402"))
+
+
+def _run_actor(actor_id: str, run_input: dict):
+    """Run an actor, rotating to the next token when one is out of credit.
+    Returns (run, client) — the dataset lives on the account that ran it, so the
+    caller must read it back with that same client."""
+    global _token_idx
+    toks = _tokens()
+    last = None
+    for attempt in range(len(toks)):
+        client = apify()
+        try:
+            run = client.actor(actor_id).call(run_input=run_input)
+            return run, client
+        except Exception as e:
+            last = e
+            if not _is_quota_error(e):
+                raise                       # a real failure — don't burn other tokens
+            _token_idx += 1                 # this account is spent; move to the next
+            print(f"[apify] token {attempt + 1}/{len(toks)} out of credit, rotating")
+    raise RuntimeError(f"All {len(toks)} Apify tokens are out of monthly credit. "
+                       f"Last error: {last}")
+
+
+def _dataset_items(run, client=None) -> list:
     """apify-client may return a Run object or dict depending on version."""
     ds_id = getattr(run, "default_dataset_id", None) or (
         run.get("defaultDatasetId") if isinstance(run, dict) else None)
-    return list(apify().dataset(ds_id).iterate_items())
+    return list((client or apify()).dataset(ds_id).iterate_items())
 
 
 # --- LinkedIn: harvestapi/linkedin-profile-posts ------------------------
@@ -40,8 +86,8 @@ def linkedin_posts(target_urls, max_posts=5, max_reactions=5, max_comments=5) ->
         "maxComments": max_comments,
         "postNestedComments": False,
     }
-    run = apify().actor("harvestapi/linkedin-profile-posts").call(run_input=run_input)
-    return _dataset_items(run)
+    run, client = _run_actor("harvestapi/linkedin-profile-posts", run_input)
+    return _dataset_items(run, client)
 
 
 def linkedin_posts_windowed(target_urls, posted_limit="24h", max_posts=20,
@@ -60,8 +106,8 @@ def linkedin_posts_windowed(target_urls, posted_limit="24h", max_posts=20,
         "includeReposts": False,
         "includeQuotePosts": True,
     }
-    run = apify().actor("harvestapi/linkedin-profile-posts").call(run_input=run_input)
-    return _dataset_items(run)
+    run, client = _run_actor("harvestapi/linkedin-profile-posts", run_input)
+    return _dataset_items(run, client)
 
 
 # --- Instagram: apify/instagram-post-scraper ----------------------------
@@ -71,15 +117,15 @@ def instagram_posts(usernames, results_limit=10, detail_level="basicData") -> li
         "resultsLimit": results_limit,
         "dataDetailLevel": detail_level,
     }
-    run = apify().actor("apify/instagram-post-scraper").call(run_input=run_input)
-    return _dataset_items(run)
+    run, client = _run_actor("apify/instagram-post-scraper", run_input)
+    return _dataset_items(run, client)
 
 
 # --- Twitter/X: parseforge/x-com-scraper --------------------------------
 def twitter_posts(usernames, max_items=10) -> list:
     run_input = {"maxItems": max_items, "usernames": usernames}
-    run = apify().actor("parseforge/x-com-scraper").call(run_input=run_input)
-    return _dataset_items(run)
+    run, client = _run_actor("parseforge/x-com-scraper", run_input)
+    return _dataset_items(run, client)
 
 
 # --- Website: Firecrawl v2 ----------------------------------------------
